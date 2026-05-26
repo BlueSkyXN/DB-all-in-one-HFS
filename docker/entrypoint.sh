@@ -127,6 +127,8 @@ wait_for_mysql() {
     sleep 1
   done
   log "ERROR: MySQL failed to start within 60 seconds."
+  log "Last MySQL error log:"
+  tail -200 "${DATA_DIR}/logs/mysql-error.log" 2>/dev/null || true
   return 1
 }
 
