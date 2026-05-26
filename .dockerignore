@@ -1,0 +1,10 @@
+.git
+.gitignore
+.DS_Store
+README.md
+docs/
+local/
+*.md
+*.secret
+*.key
+*.pem
