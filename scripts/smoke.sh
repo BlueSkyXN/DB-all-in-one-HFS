@@ -11,10 +11,10 @@ check() {
   code=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
   if [ "$code" = "$expected_code" ]; then
     printf "  ✓ %s (HTTP %s)\n" "$desc" "$code"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     printf "  ✗ %s (expected %s, got %s)\n" "$desc" "$expected_code" "$code"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 

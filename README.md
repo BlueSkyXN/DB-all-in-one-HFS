@@ -67,7 +67,9 @@ scripts/smoke.sh http://localhost:7860
 
 1. 新建 Space，SDK 选择 **Docker**。
 2. 推送本仓库文件到 Space 根目录。
-3. 在 Space Settings → Secrets 设置：
+3. 在 Space Settings → Variables 设置：
+   - `NC_SITE_URL`（可选，设置为 Space 公网 URL 时可改善分享链接）
+4. 在 Space Settings → Secrets 设置：
    - `MYSQL_ROOT_PASSWORD`（可选，不设则自动生成）
    - `MYSQL_PASSWORD`（可选，不设则自动生成）
    - `NC_AUTH_JWT_SECRET`（可选，不设则自动生成）

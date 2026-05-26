@@ -60,6 +60,7 @@ python3 -m py_compile docker/ops_service.py
 同步检查：
 - `docker/entrypoint.sh` (defaults + export)
 - `docker/ops_service.py` (if safe to expose in /config)
+- `Dockerfile` (build args / ENV if applicable)
 - `docs/configuration.md`
 
 ## 文件职责

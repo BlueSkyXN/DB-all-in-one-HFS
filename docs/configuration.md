@@ -16,8 +16,8 @@
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `NC_AUTH_JWT_SECRET` | (自动生成) | JWT 签名密钥 |
-| `NC_PORT` | `8080` | NocoDB 内部监听端口 |
-| `NC_PUBLIC_URL` | (空) | 公网访问 URL，设置后影响分享链接 |
+| `NC_SITE_URL` | (空) | 公网访问 URL，设置后影响分享链接和邮件链接 |
+| `NC_PUBLIC_URL` | (空) | 兼容旧变量；未设置 `NC_SITE_URL` 时会作为 fallback |
 | `NC_DISABLE_TELE` | `true` | 禁用遥测数据收集 |
 
 ### Ops Service
@@ -25,7 +25,7 @@
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `OPS_TOKEN` | (自动生成) | 访问 `/_ops/` 的鉴权令牌 |
-| `OPS_PORT` | `8081` | ops-service 内部监听端口 |
+| `OPS_PORT` | `8081` | ops-service 内部监听端口；当前必须保持 `8081` |
 
 ### Redis
 
@@ -33,11 +33,31 @@
 |------|--------|------|
 | `REDIS_PORT` | `6379` | Redis 内部监听端口 |
 
+### Build Args
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `MYSQL_VERSION` | `9.7` | Oracle MySQL APT channel |
+| `NOCODB_VERSION` | `0.301.3` | 构建时安装的 NocoDB npm 版本 |
+
 ### 通用
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `DATA_DIR` | `/data` | 持久化数据根目录 |
+
+## 内部端口约束
+
+HF Docker Space 对外入口固定为 Nginx `7860`。当前 `nginx.conf` 对 NocoDB 和 ops-service 使用固定内部路由：
+
+| 服务 | 内部端口 |
+|------|---------:|
+| NocoDB | `8080` |
+| ops-service | `8081` |
+| MySQL | `3306` |
+| Redis | `6379` |
+
+不要只通过环境变量修改 `PORT`、`NC_PORT` 或 `OPS_PORT`。如确实需要改内部端口，必须同步修改 `docker/nginx.conf`、`docker/supervisord.conf`、`docker/entrypoint.sh`、`docker/healthcheck.sh` 和相关文档。
 
 ## Secret 管理
 

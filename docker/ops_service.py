@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import json
 import os
@@ -22,6 +21,8 @@ SERVICE_LOGS = {
     "supervisord": "supervisord.log",
     "mysql": "mysql.log",
     "mysql.err": "mysql.err",
+    "mysql.error": "mysql-error.log",
+    "mysql.slow": "mysql-slow.log",
     "redis": "redis.log",
     "nocodb": "nocodb.log",
     "nocodb.err": "nocodb.err",
@@ -74,7 +75,7 @@ def check_nocodb() -> dict[str, Any]:
     """Check NocoDB health endpoint."""
     import urllib.request
     try:
-        port = os.environ.get("NC_PORT", "8080")
+        port = os.environ.get("PORT") or os.environ.get("NC_PORT", "8080")
         req = urllib.request.urlopen(f"http://127.0.0.1:{port}/api/v1/health", timeout=5)
         return {"status": "ok", "http_code": req.getcode()}
     except Exception as e:
@@ -176,8 +177,9 @@ class OpsHandler(BaseHTTPRequestHandler):
             self.send_text(get_logs(service, min(lines, 1000)))
         elif path == "/config":
             safe_keys = [
-                "MYSQL_DATABASE", "MYSQL_USER", "NC_PORT", "NC_DISABLE_TELE",
+                "MYSQL_DATABASE", "MYSQL_USER", "PORT", "NC_DISABLE_TELE",
                 "OPS_PORT", "REDIS_PORT", "DATA_DIR", "MYSQL_VERSION",
+                "NOCODB_VERSION", "NC_SITE_URL",
             ]
             config = {k: os.environ.get(k, "") for k in safe_keys}
             self.send_json(config)

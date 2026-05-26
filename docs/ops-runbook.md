@@ -26,9 +26,9 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/status
 curl -H "X-Ops-Token: $OPS_TOKEN" "http://localhost:7860/_ops/logs?service=nocodb&lines=200"
 
 # MySQL 错误日志
-curl -H "X-Ops-Token: $OPS_TOKEN" "http://localhost:7860/_ops/logs?service=mysql.err&lines=100"
+curl -H "X-Ops-Token: $OPS_TOKEN" "http://localhost:7860/_ops/logs?service=mysql.error&lines=100"
 
-# 可用 service: supervisord, mysql, mysql.err, redis, nocodb, nocodb.err, nginx
+# 可用 service: supervisord, mysql, mysql.err, mysql.error, mysql.slow, redis, nocodb, nocodb.err, nginx
 ```
 
 ## 常见问题排查
@@ -45,7 +45,7 @@ curl -H "X-Ops-Token: $OPS_TOKEN" "http://localhost:7860/_ops/logs?service=mysql
 
 检查：
 - `/data/mysql` 目录权限
-- `/_ops/logs?service=mysql.err` → 错误详情
+- `/_ops/logs?service=mysql.error` → 错误详情
 - 磁盘空间是否充足
 
 ### NocoDB 无法连接 MySQL

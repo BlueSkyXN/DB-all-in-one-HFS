@@ -27,7 +27,10 @@ app_port: 7860
    - Hardware: CPU Basic 或 CPU Upgrade
    - Storage: Persistent Storage（保留数据库数据）
 
-4. 在 Space Settings → Secrets 设置（可选，不设则自动生成）：
+4. 在 Space Settings → Variables 设置（可选）：
+   - `NC_SITE_URL`（Space 公网 URL）
+
+5. 在 Space Settings → Secrets 设置（可选，不设则自动生成）：
    - `MYSQL_ROOT_PASSWORD`
    - `MYSQL_PASSWORD`
    - `NC_AUTH_JWT_SECRET`
@@ -61,6 +64,12 @@ docker run -d --name db-aio-hfs \
 
 # Smoke 测试
 scripts/smoke.sh http://localhost:7860
+```
+
+如需固定不同的 NocoDB 版本，可在构建时传入 build arg：
+
+```bash
+docker build --build-arg NOCODB_VERSION=0.301.3 -t db-all-in-one-hfs:latest .
 ```
 
 ## 数据备份

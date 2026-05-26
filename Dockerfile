@@ -16,15 +16,18 @@
 ARG UBUNTU_VERSION=24.04
 ARG MYSQL_VERSION=9.7
 ARG NODE_VERSION=20
+ARG NOCODB_VERSION=0.301.3
 
 FROM ubuntu:${UBUNTU_VERSION}
 
 ARG MYSQL_VERSION
 ARG NODE_VERSION
+ARG NOCODB_VERSION
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV MYSQL_VERSION=${MYSQL_VERSION}
+ENV NOCODB_VERSION=${NOCODB_VERSION}
 ENV TZ=UTC
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
@@ -72,7 +75,7 @@ RUN set -eux; \
     node --version && npm --version
 
 # ─── NocoDB ──────────────────────────────────────────────────────────────────
-RUN npm install -g nocodb
+RUN npm install -g "nocodb@${NOCODB_VERSION}"
 
 # ─── Non-root runtime user (UID 1000 for HF Spaces) ─────────────────────────
 RUN groupadd --gid 1000 user \
@@ -86,8 +89,7 @@ RUN mkdir -p \
       /data/run/mysqld /data/run/nginx/client_body /data/run/nginx/proxy \
       /data/run/nginx/fastcgi /data/run/nginx/uwsgi /data/run/nginx/scgi \
     && chown -R user:user /data \
-    && chown -R mysql:mysql /data/mysql /data/run/mysqld \
-    && chmod -R 777 /data \
+    && chmod -R 755 /data \
     && rm -f /etc/nginx/sites-enabled/default
 
 # ─── Copy runtime configs and scripts ────────────────────────────────────────
