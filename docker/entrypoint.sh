@@ -265,7 +265,9 @@ main() {
   log "Starting MySQL for bootstrap..."
   mysqld --datadir="${MYSQL_DATA_DIR}" \
          --socket=/data/run/mysqld/mysqld.sock \
+         --pid-file=/data/run/mysqld/mysqld.pid \
          --port=3306 --bind-address=127.0.0.1 --skip-name-resolve \
+         --mysqlx=0 \
          --log-error="${DATA_DIR}/logs/mysql-error.log" &
   local bootstrap_pid=$!
   trap 'kill "${bootstrap_pid:-}" 2>/dev/null || true; wait "${bootstrap_pid:-}" 2>/dev/null || true' EXIT
