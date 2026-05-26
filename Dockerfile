@@ -51,7 +51,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ─── MySQL 9.7 LTS from Oracle APT repo ──────────────────────────────────────
 RUN set -eux; \
-    curl -fsSL https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 \
+    curl -fsSL https://repo.mysql.com/RPM-GPG-KEY-mysql-2025 \
         | gpg --dearmor -o /usr/share/keyrings/mysql.gpg; \
     echo "deb [signed-by=/usr/share/keyrings/mysql.gpg] http://repo.mysql.com/apt/ubuntu/ $(lsb_release -cs) mysql-${MYSQL_VERSION}-lts" \
         > /etc/apt/sources.list.d/mysql.list; \
