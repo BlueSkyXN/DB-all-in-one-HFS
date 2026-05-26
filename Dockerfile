@@ -15,19 +15,17 @@
 
 ARG UBUNTU_VERSION=24.04
 ARG MYSQL_VERSION=9.7
-ARG NODE_VERSION=20
-ARG NOCODB_VERSION=0.301.3
+ARG NOCODB_RELEASE=2026.05.1
 
 FROM ubuntu:${UBUNTU_VERSION}
 
 ARG MYSQL_VERSION
-ARG NODE_VERSION
-ARG NOCODB_VERSION
+ARG NOCODB_RELEASE
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV MYSQL_VERSION=${MYSQL_VERSION}
-ENV NOCODB_VERSION=${NOCODB_VERSION}
+ENV NOCODB_RELEASE=${NOCODB_RELEASE}
 ENV TZ=UTC
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
@@ -62,20 +60,16 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*; \
     mkdir -p /var/run/mysqld && chown mysql:mysql /var/run/mysqld
 
-# ─── Node.js (for NocoDB) ────────────────────────────────────────────────────
-RUN set -eux; \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key -o /tmp/nodesource.gpg; \
-    gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg /tmp/nodesource.gpg; \
-    rm -f /tmp/nodesource.gpg; \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_VERSION}.x nodistro main" \
-        > /etc/apt/sources.list.d/nodesource.list; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends nodejs; \
-    rm -rf /var/lib/apt/lists/*; \
-    node --version && npm --version
-
 # ─── NocoDB ──────────────────────────────────────────────────────────────────
-RUN npm install -g "nocodb@${NOCODB_VERSION}"
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) noco_arch="linux-x64" ;; \
+      arm64) noco_arch="linux-arm64" ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/nocodb/nocodb/releases/download/${NOCODB_RELEASE}/Noco-${noco_arch}" \
+      -o /usr/local/bin/nocodb; \
+    chmod +x /usr/local/bin/nocodb
 
 # ─── Non-root runtime user (UID 1000 for HF Spaces) ─────────────────────────
 RUN groupadd --gid 1000 user \

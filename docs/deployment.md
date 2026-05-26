@@ -66,10 +66,10 @@ docker run -d --name db-aio-hfs \
 scripts/smoke.sh http://localhost:7860
 ```
 
-如需固定不同的 NocoDB 版本，可在构建时传入 build arg：
+如需固定不同的 NocoDB release，可在构建时传入 build arg：
 
 ```bash
-docker build --build-arg NOCODB_VERSION=0.301.3 -t db-all-in-one-hfs:latest .
+docker build --build-arg NOCODB_RELEASE=2026.05.1 -t db-all-in-one-hfs:latest .
 ```
 
 ## 数据备份

@@ -38,7 +38,7 @@
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MYSQL_VERSION` | `9.7` | Oracle MySQL APT channel |
-| `NOCODB_VERSION` | `0.301.3` | 构建时安装的 NocoDB npm 版本 |
+| `NOCODB_RELEASE` | `2026.05.1` | 构建时下载的 NocoDB GitHub release |
 
 ### 通用
 

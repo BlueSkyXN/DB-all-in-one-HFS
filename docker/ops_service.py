@@ -179,7 +179,7 @@ class OpsHandler(BaseHTTPRequestHandler):
             safe_keys = [
                 "MYSQL_DATABASE", "MYSQL_USER", "PORT", "NC_DISABLE_TELE",
                 "OPS_PORT", "REDIS_PORT", "DATA_DIR", "MYSQL_VERSION",
-                "NOCODB_VERSION", "NC_SITE_URL",
+                "NOCODB_RELEASE", "NC_SITE_URL",
             ]
             config = {k: os.environ.get(k, "") for k in safe_keys}
             self.send_json(config)
