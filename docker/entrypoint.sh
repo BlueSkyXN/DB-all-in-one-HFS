@@ -102,7 +102,12 @@ generate_secrets() {
 init_mysql() {
   if [ ! -d "${MYSQL_DATA_DIR}/mysql" ]; then
     log "Initializing MySQL data directory..."
-    mysqld --initialize-insecure --datadir="${MYSQL_DATA_DIR}"
+    if [ -n "$(find "${MYSQL_DATA_DIR}" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+      log "Removing incomplete MySQL data directory contents..."
+      find "${MYSQL_DATA_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    fi
+    mysqld --initialize-insecure --datadir="${MYSQL_DATA_DIR}" \
+           --log-error="${DATA_DIR}/logs/mysql-error.log"
   fi
   chmod -R u+rwX "${MYSQL_DATA_DIR}" "${DATA_DIR}/run/mysqld" 2>/dev/null || true
 }
@@ -254,7 +259,8 @@ main() {
   log "Starting MySQL for bootstrap..."
   mysqld --datadir="${MYSQL_DATA_DIR}" \
          --socket=/data/run/mysqld/mysqld.sock \
-         --port=3306 --bind-address=127.0.0.1 --skip-name-resolve &
+         --port=3306 --bind-address=127.0.0.1 --skip-name-resolve \
+         --log-error="${DATA_DIR}/logs/mysql-error.log" &
   local bootstrap_pid=$!
   trap 'kill "${bootstrap_pid:-}" 2>/dev/null || true; wait "${bootstrap_pid:-}" 2>/dev/null || true' EXIT
 
