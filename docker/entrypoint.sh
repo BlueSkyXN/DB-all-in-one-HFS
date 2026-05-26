@@ -106,8 +106,12 @@ init_mysql() {
       log "Removing incomplete MySQL data directory contents..."
       find "${MYSQL_DATA_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
     fi
-    mysqld --initialize-insecure --datadir="${MYSQL_DATA_DIR}" \
-           --log-error="${DATA_DIR}/logs/mysql-error.log"
+    if ! mysqld --initialize-insecure --datadir="${MYSQL_DATA_DIR}" \
+           --log-error="${DATA_DIR}/logs/mysql-error.log"; then
+      log "ERROR: MySQL initialization failed. Last MySQL error log:"
+      tail -200 "${DATA_DIR}/logs/mysql-error.log" 2>/dev/null || true
+      return 1
+    fi
   fi
   chmod -R u+rwX "${MYSQL_DATA_DIR}" "${DATA_DIR}/run/mysqld" 2>/dev/null || true
 }
