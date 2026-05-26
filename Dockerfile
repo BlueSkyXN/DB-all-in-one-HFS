@@ -72,8 +72,15 @@ RUN set -eux; \
     chmod +x /usr/local/bin/nocodb
 
 # ─── Non-root runtime user (UID 1000 for HF Spaces) ─────────────────────────
-RUN groupadd --gid 1000 user \
-    && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash user
+RUN set -eux; \
+    if ! getent group 1000 >/dev/null; then \
+      groupadd --gid 1000 user; \
+    fi; \
+    if ! getent passwd 1000 >/dev/null; then \
+      useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash user; \
+    fi; \
+    mkdir -p /home/user; \
+    chown -R 1000:1000 /home/user
 
 ENV HOME=/home/user
 
@@ -82,7 +89,7 @@ RUN mkdir -p \
       /data/mysql /data/nocodb /data/redis /data/config /data/logs \
       /data/run/mysqld /data/run/nginx/client_body /data/run/nginx/proxy \
       /data/run/nginx/fastcgi /data/run/nginx/uwsgi /data/run/nginx/scgi \
-    && chown -R user:user /data \
+    && chown -R 1000:1000 /data \
     && chmod -R 755 /data \
     && rm -f /etc/nginx/sites-enabled/default
 
@@ -99,7 +106,7 @@ RUN chmod +x \
       /usr/local/bin/db-aio-healthcheck \
       /usr/local/bin/db-ops-service
 
-USER user
+USER 1000
 WORKDIR /home/user
 
 EXPOSE 7860
