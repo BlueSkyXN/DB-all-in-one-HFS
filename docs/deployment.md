@@ -6,6 +6,7 @@
 
 - Hugging Face 账号
 - 新建 Space，SDK 选择 **Docker**
+- 建议启用 Persistent Storage，用于保存 `/data`
 
 ### 步骤
 
@@ -25,16 +26,18 @@ app_port: 7860
 
 3. 在 Space Settings 中建议：
    - Hardware: CPU Basic 或 CPU Upgrade
-   - Storage: Persistent Storage（保留数据库数据）
+   - Storage: Persistent Storage（保留 MySQL、Redis、NocoDB 文件和生成 secret）
 
-4. 在 Space Settings → Variables 设置（可选）：
+4. 在 Space Settings -> Variables 设置（可选）：
    - `NC_SITE_URL`（Space 公网 URL）
 
-5. 在 Space Settings → Secrets 设置（可选，不设则自动生成）：
+5. 在 Space Settings -> Secrets 设置（可选，不设则自动生成）：
    - `MYSQL_ROOT_PASSWORD`
    - `MYSQL_PASSWORD`
    - `NC_AUTH_JWT_SECRET`
    - `OPS_TOKEN`（推荐设置，便于远程诊断）
+
+如果没有设置这些 secret，入口脚本会在首次启动时生成并写入 `/data/config/generated.env`。这适合临时 demo，但远程调用 `/_ops/` 时不方便读取自动生成的 `OPS_TOKEN`，因此建议显式设置。
 
 ### 查看运行状态
 
@@ -46,13 +49,15 @@ curl https://your-space.hf.space/healthz
 curl -H "X-Ops-Token: $OPS_TOKEN" https://your-space.hf.space/_ops/status
 ```
 
+`/healthz` 会检查 MySQL、Redis 和 NocoDB。Nginx 自身健康检查为 `/nginx-health`。
+
 ## 本地 Docker 部署
 
 ```bash
-# 构建
+# 构建默认镜像 db-all-in-one-hfs:latest
 scripts/build.sh
 
-# 运行（交互模式）
+# 运行（交互模式，使用 named volume db-hfs-persist）
 scripts/run-demo.sh
 
 # 后台运行
@@ -66,26 +71,58 @@ docker run -d --name db-aio-hfs \
 scripts/smoke.sh http://localhost:7860
 ```
 
+`scripts/smoke.sh` 主要用于检查公开端点。需要验证 ops 鉴权端点时，使用下面的 `curl -H "X-Ops-Token: ..."` 命令单独检查。
+
+`scripts/build.sh` 和 `scripts/run-demo.sh` 都支持把镜像 tag 作为第一个参数：
+
+```bash
+scripts/build.sh db-all-in-one-hfs:test
+scripts/run-demo.sh db-all-in-one-hfs:test
+```
+
 如需固定不同的 NocoDB release，可在构建时传入 build arg：
 
 ```bash
 docker build --build-arg NOCODB_RELEASE=2026.05.1 -t db-all-in-one-hfs:latest .
 ```
 
-## 数据备份
+## 读取本地自动生成的 OPS_TOKEN
+
+如果使用 `scripts/run-demo.sh`，持久化卷名是 `db-hfs-persist`。可用同一镜像读取生成的 token：
+
+```bash
+docker run --rm --entrypoint bash \
+  -v db-hfs-persist:/data \
+  db-all-in-one-hfs:latest \
+  -lc 'grep "^_GEN_OPS_TOKEN=" /data/config/generated.env'
+```
+
+拿到 token 后：
+
+```bash
+curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/status
+```
+
+## 数据备份与恢复边界
 
 MySQL 数据存储在 `/data/mysql`。备份建议：
 
 ```bash
-# 进入容器执行 mysqldump
-docker exec db-aio-hfs mysqldump \
-  --socket=/data/run/mysqld/mysqld.sock \
-  -u root -p"$MYSQL_ROOT_PASSWORD" \
-  --all-databases > backup.sql
+docker exec db-aio-hfs bash -lc '
+  . /data/config/generated.env
+  mysqldump --socket=/data/run/mysqld/mysqld.sock \
+    -u root -p"$_GEN_MYSQL_ROOT_PASSWORD" \
+    --all-databases
+' > backup.sql
 ```
+
+如果容器名来自 `scripts/run-demo.sh`，应使用 `db-aio-hfs-demo`。
+
+恢复和长期备份策略不在本 demo 内自动处理。生产数据请使用独立 MySQL 服务和正式备份方案。
 
 ## 注意事项
 
 - 本方案为 Demo/PoC 用途，不建议承载生产数据
 - HF Spaces 免费层可能有资源限制和冷启动
 - 密钥在首次启动时自动生成并持久化，挂载卷不丢失
+- 改动 `MYSQL_VERSION` 或 `NOCODB_RELEASE` 属于版本升级，需重新构建并单独验证兼容性
