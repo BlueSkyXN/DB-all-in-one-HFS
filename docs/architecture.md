@@ -44,6 +44,7 @@
    - 停止临时 MySQL
    - 写入 `/data/run/redis.conf`
    - 导出 NocoDB、Redis、MySQL、ops-service 所需环境变量
+   - 写入 `/data/run/db-aio-public/nocodb-locale-init.js`，用于初始化 NocoDB UI 默认语言
    - 写入 `/data/config/supervisor.env` 作为诊断用快照
    - 启动 supervisord
 3. `supervisord` 按优先级启动：
@@ -69,6 +70,7 @@ Nginx 路由：
 | --- | --- | --- |
 | `/` | NocoDB `http://127.0.0.1:8080` | NocoDB 自身鉴权 |
 | `/socket.io/` | NocoDB WebSocket | NocoDB 自身鉴权 |
+| `/__db_aio/nocodb-locale-init.js` | Nginx 本地静态文件 | 无 |
 | `/nginx-health` | Nginx 本地响应 | 无 |
 | `/healthz` | ops-service `/healthz` | 无 |
 | `/_ops/` | ops-service `/` | `OPS_TOKEN` |
@@ -86,6 +88,7 @@ Nginx 路由：
 ├── nocodb/          # NocoDB 元数据和上传文件
 ├── redis/           # Redis RDB 快照
 └── run/             # PID 文件、socket、redis.conf、nginx temp
+    ├── db-aio-public/  # Nginx 公开的 wrapper 静态初始化文件
     ├── mysqld/
     └── nginx/
 ```

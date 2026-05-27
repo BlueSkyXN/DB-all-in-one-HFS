@@ -73,6 +73,7 @@ scripts/smoke.sh http://localhost:7860
 3. 建议启用 Persistent Storage，否则重建后 `/data` 中的 MySQL 数据和生成 secret 会丢失。
 4. 在 Space Settings -> Variables 设置：
    - `NC_SITE_URL`（可选，设置为 Space 公网 URL 时可改善分享链接）
+   - `NC_DEFAULT_LOCALE`（可选，默认 `zh-Hans`；通过 wrapper 初始化 NocoDB UI 默认语言）
 5. 在 Space Settings -> Secrets 设置：
    - `MYSQL_ROOT_PASSWORD`（可选，不设则自动生成）
    - `MYSQL_PASSWORD`（可选，不设则自动生成）

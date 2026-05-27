@@ -128,6 +128,8 @@ scripts/static-check.sh
 
 ```bash
 scripts/build.sh
+docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -V 2>&1 | grep http_sub_module
+docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -t -c /etc/nginx/nginx.conf
 scripts/run-demo.sh
 scripts/smoke.sh http://localhost:7860
 ```

@@ -20,11 +20,12 @@ log() {
 : "${NC_DISABLE_TELE:=true}"
 : "${NC_PUBLIC_URL:=}"
 : "${NC_SITE_URL:=${NC_PUBLIC_URL}}"
+: "${NC_DEFAULT_LOCALE:=zh-Hans}"
 : "${OPS_PORT:=8081}"
 : "${OPS_TOKEN:=}"
 : "${REDIS_PORT:=6379}"
 
-export DATA_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT
+export DATA_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE
 
 MYSQL_DATA_DIR="${DATA_DIR}/mysql"
 NOCODB_DATA_DIR="${DATA_DIR}/nocodb"
@@ -210,6 +211,17 @@ EOF
 # NocoDB environment
 # ═══════════════════════════════════════════════════════════════════════════════
 
+validate_default_locale() {
+  case "${NC_DEFAULT_LOCALE}" in
+    en|zh-Hans|zh-Hant)
+      ;;
+    *)
+      log "ERROR: NC_DEFAULT_LOCALE must be one of: en, zh-Hans, zh-Hant"
+      return 1
+      ;;
+  esac
+}
+
 export_nocodb_env() {
   local mysql_user_url
   local mysql_password_url
@@ -231,6 +243,39 @@ export_nocodb_env() {
   fi
 }
 
+write_nocodb_locale_init_js() {
+  mkdir -p "${DATA_DIR}/run/db-aio-public"
+
+  cat > "${DATA_DIR}/run/db-aio-public/nocodb-locale-init.js" <<EOF
+(function () {
+  try {
+    var storageKey = 'nocodb-gui-v2';
+    var markerKey = 'db-aio-hfs-nocodb-default-locale';
+    var defaultLocale = '${NC_DEFAULT_LOCALE}';
+
+    var previousDefault = localStorage.getItem(markerKey);
+    var raw = localStorage.getItem(storageKey);
+    var state = raw ? JSON.parse(raw) : {};
+    if (!state || typeof state !== 'object') state = {};
+
+    var shouldApply =
+      !state.lang ||
+      state.lang === previousDefault ||
+      (!previousDefault && state.lang === 'en');
+
+    if (shouldApply) {
+      state.lang = defaultLocale;
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    localStorage.setItem(markerKey, defaultLocale);
+  } catch (e) {
+    // ignore
+  }
+})();
+EOF
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -250,10 +295,12 @@ main() {
   generate_secrets
   validate_fixed_port "PORT" "${PORT}" "8080"
   validate_fixed_port "OPS_PORT" "${OPS_PORT}" "8081"
+  validate_default_locale
 
   log "  MySQL database : ${MYSQL_DATABASE}"
   log "  MySQL user     : ${MYSQL_USER}"
   log "  NocoDB port    : ${PORT}"
+  log "  Default locale : ${NC_DEFAULT_LOCALE}"
   log "  OPS port       : ${OPS_PORT}"
   log "  Data dir       : ${DATA_DIR}"
   log "=========================================="
@@ -287,6 +334,7 @@ main() {
 
   # Export NocoDB environment
   export_nocodb_env
+  write_nocodb_locale_init_js
 
   # This file is for diagnostics; supervisord inherits the exported environment.
   {
@@ -304,6 +352,7 @@ main() {
     write_shell_env "OPS_TOKEN" "${OPS_TOKEN}"
     write_shell_env "OPS_PORT" "${OPS_PORT}"
     write_shell_env "DATA_DIR" "${DATA_DIR}"
+    write_shell_env "NC_DEFAULT_LOCALE" "${NC_DEFAULT_LOCALE}"
     [ -n "${NC_SITE_URL}" ] && write_shell_env "NC_SITE_URL" "${NC_SITE_URL}"
   } > "${DATA_DIR}/config/supervisor.env"
   chmod 600 "${DATA_DIR}/config/supervisor.env"

@@ -30,6 +30,7 @@ app_port: 7860
 
 4. 在 Space Settings -> Variables 设置（可选）：
    - `NC_SITE_URL`（Space 公网 URL）
+   - `NC_DEFAULT_LOCALE`（NocoDB UI 默认语言，默认 `zh-Hans`；支持 `en`、`zh-Hans`、`zh-Hant`）
 
 5. 在 Space Settings -> Secrets 设置（可选，不设则自动生成）：
    - `MYSQL_ROOT_PASSWORD`

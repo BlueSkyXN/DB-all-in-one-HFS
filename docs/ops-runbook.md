@@ -87,6 +87,14 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/config
 - `/_ops/config` 中的 `MYSQL_DATABASE`、`MYSQL_USER`、`PORT`
 - `/data/config/supervisor.env` 中的 `NC_DB` 是否指向 `127.0.0.1:3306`
 
+### NocoDB 默认语言未生效
+
+检查：
+- `/_ops/config` 中的 `NC_DEFAULT_LOCALE`
+- `http://localhost:7860/__db_aio/nocodb-locale-init.js` 是否返回初始化脚本
+- NocoDB 首页 HTML 是否包含 `nocodb-locale-init.js`
+- 浏览器 `localStorage["nocodb-gui-v2"].lang` 是否已被用户手动改成其他语言
+
 ### 首次启动超时
 
 MySQL 初始化（`--initialize-insecure`）在首次运行需要额外时间。HEALTHCHECK 的 `start-period=90s` 已预留缓冲。如果硬件较慢，可增加到 120s。

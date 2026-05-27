@@ -6,7 +6,7 @@
 - 入口脚本首次启动时生成并写入 `/data/config/generated.env` 的 secret
 - Docker build arg
 
-除 `NC_SITE_URL` 这类公开 URL 外，secret 应放在 HF Space Settings -> Secrets 或本地 `docker run -e` 中，不要提交到 Git。
+除 `NC_SITE_URL`、`NC_DEFAULT_LOCALE` 这类公开配置外，secret 应放在 HF Space Settings -> Secrets 或本地 `docker run -e` 中，不要提交到 Git。
 
 ## 环境变量
 
@@ -29,6 +29,7 @@
 | `NC_SITE_URL` | (空) | 公网访问 URL，设置后影响分享链接和邮件链接 |
 | `NC_PUBLIC_URL` | (空) | 兼容旧变量；未设置 `NC_SITE_URL` 时会作为 fallback |
 | `NC_DISABLE_TELE` | `true` | 禁用遥测数据收集 |
+| `NC_DEFAULT_LOCALE` | `zh-Hans` | 初始化 NocoDB UI 默认语言；支持 `en`、`zh-Hans`、`zh-Hant`。该变量通过 wrapper 注入脚本初始化浏览器 localStorage，不是 NocoDB 官方环境变量 |
 | `NC_PORT` | `8080` | NocoDB 内部端口来源；当前必须保持 `8080` |
 | `PORT` | `NC_PORT` | NocoDB 实际监听端口；入口脚本校验必须为 `8080` |
 
@@ -137,4 +138,4 @@ HF Docker Space 对外入口固定为 Nginx `7860`。当前 `nginx.conf` 对 Noc
 | `nocodb.err` | `/data/logs/nocodb.err` |
 | `nginx` | `/data/logs/nginx.log` |
 
-`/_ops/config` 当前只返回这些键：`MYSQL_DATABASE`、`MYSQL_USER`、`PORT`、`NC_DISABLE_TELE`、`OPS_PORT`、`REDIS_PORT`、`DATA_DIR`、`MYSQL_VERSION`、`NOCODB_RELEASE`、`NC_SITE_URL`。
+`/_ops/config` 当前只返回这些键：`MYSQL_DATABASE`、`MYSQL_USER`、`PORT`、`NC_DISABLE_TELE`、`OPS_PORT`、`REDIS_PORT`、`DATA_DIR`、`MYSQL_VERSION`、`NOCODB_RELEASE`、`NC_SITE_URL`、`NC_DEFAULT_LOCALE`。
