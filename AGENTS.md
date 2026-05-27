@@ -65,6 +65,7 @@ cat docker/AGENTS.md
 - `ops-service` 的配置输出必须只包含 safe keys，不能返回 password、token、JWT secret、generated secret 或完整环境变量 dump。
 - `NC_DEFAULT_LOCALE` 是本仓库 wrapper 层的 NocoDB UI 默认语言初始化变量，不是 NocoDB 官方 locale 环境变量；它通过 Nginx 注入 JS 写入浏览器 `localStorage`。
 - Nginx 公开 wrapper 静态初始化文件时只能使用 exact path，例如 `/__db_aio/nocodb-locale-init.js`；公开文件放在 `/data/run/db-aio-public`，不要从 `/data/config` 服务任何静态文件。
+- Nginx 对 `/signup` 和 `/signup/` 只做 exact 兼容重定向到 `/signin/`；不要通配重写 `/signup/<token>`，避免破坏潜在 token/invitation 路径。
 - Shell 脚本保持 `#!/usr/bin/env bash` 与 `set -euo pipefail`。
 - `docker/ops_service.py` 只使用 Python 标准库，不新增第三方 Python 依赖。
 - 新增或重命名 env var 时同步检查 `docker/entrypoint.sh`、`docker/supervisord.conf`、`docker/ops_service.py`、`README.md` 和 `docs/configuration.md`。

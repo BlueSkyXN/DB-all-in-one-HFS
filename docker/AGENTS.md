@@ -27,6 +27,7 @@
 - `ops_service.py` 只使用 Python 标准库，不新增第三方依赖。
 - Nginx 对外监听 `7860`；NocoDB 内部为 `8080`；ops-service 内部为 `8081`。
 - Nginx 只用 exact path 暴露 `/__db_aio/nocodb-locale-init.js`；不要新增目录级 alias 暴露 `/data/config` 或整个 `/data/run`。
+- Nginx 只对 exact `/signup` 和 `/signup/` 做兼容重定向到 `/signin/`；不要把 `/signup/<token>` 这类潜在 token 路径通配改写掉。
 - `location /` 的 NocoDB HTML 注入依赖 `sub_filter` 和关闭 upstream `Accept-Encoding`；修改后必须做 Nginx 语法和模块验证。
 - `ops_service.py` 的 `/config` 只能返回 safe keys，不能返回 password、token、JWT secret 或完整环境变量。
 - `my.cnf` 不应把 MySQL 绑定到公网地址。

@@ -90,6 +90,7 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/config
 ### NocoDB 默认语言未生效
 
 检查：
+- 直接访问 `/signup` 时是否已被 Nginx 重定向到 `/signin/`
 - `/_ops/config` 中的 `NC_DEFAULT_LOCALE`
 - `http://localhost:7860/__db_aio/nocodb-locale-init.js` 是否返回初始化脚本
 - NocoDB 首页 HTML 是否包含 `nocodb-locale-init.js`

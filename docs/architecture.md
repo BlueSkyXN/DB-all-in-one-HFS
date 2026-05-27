@@ -69,6 +69,7 @@ Nginx 路由：
 | 外部路径 | 上游 | 鉴权 |
 | --- | --- | --- |
 | `/` | NocoDB `http://127.0.0.1:8080` | NocoDB 自身鉴权 |
+| `/signup`、`/signup/` | Nginx redirect to `/signin/` | 无 |
 | `/socket.io/` | NocoDB WebSocket | NocoDB 自身鉴权 |
 | `/__db_aio/nocodb-locale-init.js` | Nginx 本地静态文件 | 无 |
 | `/nginx-health` | Nginx 本地响应 | 无 |
