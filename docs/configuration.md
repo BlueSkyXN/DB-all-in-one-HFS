@@ -67,7 +67,7 @@ NC_REDIS_URL=redis://127.0.0.1:6379
 |------|--------|------|
 | `UBUNTU_VERSION` | `24.04` | 基础镜像版本 |
 | `MYSQL_VERSION` | `9.7` | Oracle MySQL APT channel |
-| `NOCODB_RELEASE` | `2026.05.1` | 构建时下载的 NocoDB GitHub release |
+| `NOCODB_RELEASE` | (auto) | 未设置时构建时自动从 `https://github.com/nocodb/nocodb/releases/latest` 解析最新版；设置值时固定对应 tag |
 | `TARGETARCH` | `amd64` | NocoDB 二进制架构选择；支持 `amd64` 和 `arm64` |
 
 ### 通用

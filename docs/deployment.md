@@ -81,10 +81,10 @@ scripts/build.sh db-all-in-one-hfs:test
 scripts/run-demo.sh db-all-in-one-hfs:test
 ```
 
-如需固定不同的 NocoDB release，可在构建时传入 build arg：
+默认构建不传 `NOCODB_RELEASE` 时会自动取 GitHub 最新 release；如需固定版本，可在构建时传入：
 
 ```bash
-docker build --build-arg NOCODB_RELEASE=2026.05.1 -t db-all-in-one-hfs:latest .
+docker build --build-arg NOCODB_RELEASE=2026.05.2 -t db-all-in-one-hfs:latest .
 ```
 
 ## 读取本地自动生成的 OPS_TOKEN

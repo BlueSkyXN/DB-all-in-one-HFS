@@ -15,7 +15,7 @@
 
 ARG UBUNTU_VERSION=24.04
 ARG MYSQL_VERSION=9.7
-ARG NOCODB_RELEASE=2026.05.1
+ARG NOCODB_RELEASE=
 
 FROM ubuntu:${UBUNTU_VERSION}
 
@@ -67,6 +67,22 @@ RUN set -eux; \
       arm64) noco_arch="linux-arm64" ;; \
       *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
+    if [ -z "${NOCODB_RELEASE}" ]; then \
+      latest_url="$(curl -fsSL -L -o /dev/null -w '%{url_effective}' https://github.com/nocodb/nocodb/releases/latest)"; \
+      if [ -z "${latest_url}" ]; then \
+        echo "ERROR: Failed to resolve latest NocoDB release (no redirect URL)." >&2; \
+        exit 1; \
+      fi; \
+      NOCODB_RELEASE="${latest_url%/}"; \
+      NOCODB_RELEASE="${NOCODB_RELEASE##*/}"; \
+      if [ -z "${NOCODB_RELEASE}" ]; then \
+        echo "ERROR: Failed to parse NocoDB release tag from: ${latest_url}" >&2; \
+        exit 1; \
+      fi; \
+      echo "Resolved latest NocoDB release: ${NOCODB_RELEASE}"; \
+    else \
+      echo "Using explicit NocoDB release: ${NOCODB_RELEASE}"; \
+    fi; \
     curl -fsSL "https://github.com/nocodb/nocodb/releases/download/${NOCODB_RELEASE}/Noco-${noco_arch}" \
       -o /usr/local/bin/nocodb; \
     chmod +x /usr/local/bin/nocodb
