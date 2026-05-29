@@ -16,6 +16,12 @@ pinned: false
 
 > 该工程不是生产部署方案。生产环境应使用独立的 MySQL 服务，并补齐高可用、备份、鉴权、监控和容量规划。
 
+## HFS 范式定位
+
+本仓库属于 **HFS Port Repository**：仓库根目录同时是 GitHub 维护根和 Hugging Face Space root。不要把 Space 文件迁入 `cloud/hfs/`；`cloud/hfs/` 只适用于自研产品仓的 HFS Deployment Adapter。
+
+Runtime 获取模式属于 **artifact-at-build-time**：镜像 build 阶段安装 MySQL APT 包，并下载 NocoDB release binary。开发默认值允许跟随最新 release；发布态构建应显式 pin build 输入。
+
 ## 文档入口
 
 - [架构说明](./docs/architecture.md)
@@ -65,6 +71,19 @@ scripts/smoke.sh http://localhost:7860
 - Ops 诊断: <http://localhost:7860/_ops/health>（需 `OPS_TOKEN`）
 
 如果需要远程或本地稳定访问 `/_ops/`，建议显式设置 `OPS_TOKEN`。不设置时入口脚本会生成 token，但该 token 只保存在 `/data/config/generated.env`，不会通过公开接口返回。
+
+## 可复现构建
+
+默认构建会解析最新 NocoDB release，适合本地开发和临时 demo。发布态构建应显式指定 NocoDB release 和二进制 SHA256：
+
+```bash
+NOCODB_RELEASE=<release-tag> \
+NOCODB_SHA256=<sha256> \
+scripts/build.sh db-all-in-one-hfs:<release-tag>
+```
+
+如需 pin 基础镜像，可把 `UBUNTU_VERSION` 设置为 tag+digest 形式，例如 `24.04@sha256:<digest>`。
+如需进一步 pin MySQL APT 包，可通过 `MYSQL_SERVER_PACKAGE` 和 `MYSQL_CLIENT_PACKAGE` 传入带版本的 package spec。
 
 ## Hugging Face Space 部署
 

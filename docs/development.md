@@ -24,6 +24,11 @@ scripts/static-check.sh
 # 构建镜像
 scripts/build.sh
 
+# 构建发布态候选镜像时显式 pin NocoDB release 和 SHA256
+NOCODB_RELEASE=<release-tag> \
+NOCODB_SHA256=<sha256> \
+scripts/build.sh db-all-in-one-hfs:<release-tag>
+
 # 运行 demo
 scripts/run-demo.sh
 
@@ -38,6 +43,8 @@ scripts/smoke.sh http://localhost:7860
 | `scripts/build.sh` | image tag | `db-all-in-one-hfs:latest` |
 | `scripts/run-demo.sh` | image tag | `db-all-in-one-hfs:latest` |
 | `scripts/smoke.sh` | base URL | `http://localhost:7860` |
+
+`scripts/build.sh` 会透传 `UBUNTU_VERSION`、`MYSQL_VERSION`、`MYSQL_SERVER_PACKAGE`、`MYSQL_CLIENT_PACKAGE`、`NOCODB_RELEASE` 和 `NOCODB_SHA256` 环境变量为 Docker build args。默认 auto/latest 构建用于开发；发布态构建需要显式 pin release 和 checksum，并可按需 pin MySQL package spec。
 
 Docker healthcheck 与 smoke 脚本不是同一层检查：
 

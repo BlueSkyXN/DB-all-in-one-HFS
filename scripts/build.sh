@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 IMAGE_TAG=${1:-db-all-in-one-hfs:latest}
-docker build -t "$IMAGE_TAG" .
+
+build_args=()
+for name in \
+  UBUNTU_VERSION \
+  MYSQL_VERSION \
+  MYSQL_SERVER_PACKAGE \
+  MYSQL_CLIENT_PACKAGE \
+  NOCODB_RELEASE \
+  NOCODB_SHA256
+do
+  value="${!name:-}"
+  if [ -n "$value" ]; then
+    build_args+=(--build-arg "${name}=${value}")
+  fi
+done
+
+docker build "${build_args[@]}" -t "$IMAGE_TAG" .

@@ -15,12 +15,18 @@
 
 ARG UBUNTU_VERSION=24.04
 ARG MYSQL_VERSION=9.7
+ARG MYSQL_SERVER_PACKAGE=mysql-server
+ARG MYSQL_CLIENT_PACKAGE=mysql-client
 ARG NOCODB_RELEASE=
+ARG NOCODB_SHA256=
 
 FROM ubuntu:${UBUNTU_VERSION}
 
 ARG MYSQL_VERSION
+ARG MYSQL_SERVER_PACKAGE
+ARG MYSQL_CLIENT_PACKAGE
 ARG NOCODB_RELEASE
+ARG NOCODB_SHA256
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -55,8 +61,8 @@ RUN set -eux; \
         > /etc/apt/sources.list.d/mysql.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        mysql-server \
-        mysql-client; \
+        "${MYSQL_SERVER_PACKAGE}" \
+        "${MYSQL_CLIENT_PACKAGE}"; \
     rm -rf /var/lib/apt/lists/*; \
     mkdir -p /var/run/mysqld && chown mysql:mysql /var/run/mysqld
 
@@ -85,6 +91,11 @@ RUN set -eux; \
     fi; \
     curl -fsSL "https://github.com/nocodb/nocodb/releases/download/${NOCODB_RELEASE}/Noco-${noco_arch}" \
       -o /usr/local/bin/nocodb; \
+    if [ -n "${NOCODB_SHA256}" ]; then \
+      echo "${NOCODB_SHA256}  /usr/local/bin/nocodb" | sha256sum -c -; \
+    else \
+      echo "WARNING: NOCODB_SHA256 is not set; this build is not release-pinned."; \
+    fi; \
     chmod +x /usr/local/bin/nocodb
 
 # ─── Non-root runtime user (UID 1000 for HF Spaces) ─────────────────────────
