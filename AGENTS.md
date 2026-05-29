@@ -21,6 +21,7 @@
 | `README.md` | Hugging Face Space card、项目介绍、本地运行和部署入口 | No | 修改项目定位、HF metadata、端口说明或公开文档入口时 |
 | `Dockerfile` | Docker Space 镜像构建入口；安装 MySQL、NocoDB、Redis、Nginx、Supervisor、Python runtime | No | 修改基础镜像、MySQL/NocoDB 版本、系统包、复制路径、用户、端口、healthcheck 时 |
 | `.dockerignore` | Docker build context 过滤 | No | 修改 build context、排除规则或避免把本地文件打进镜像时 |
+| `.codex/` | 本机 Codex agents/skills symlink 映射；当前不在 Git 跟踪内 | No | 仅在用户要求检查 Codex runtime、skill 或 agent 映射时读取；不要当作仓库权威内容 |
 | `docker/` | runtime 配置和脚本：entrypoint、env、Supervisor、Nginx、MySQL、ops-service、healthcheck | Yes | 修改 `docker/` 下任意文件前先读 `docker/AGENTS.md` |
 | `scripts/` | 本地 build、run、smoke、static check 脚本 | No | 修改开发者命令面、Docker 调用参数、smoke URL 或静态检查范围时 |
 | `docs/` | 架构、配置、部署、开发、运维文档 | No | 修改 env var、端口、持久化、部署方式、运维步骤后同步检查相关文档 |
@@ -73,6 +74,7 @@ cat docker/AGENTS.md
 - 修改 Nginx HTML 注入或 `sub_filter` 逻辑时同步检查 `docker/nginx.conf`、`docker/entrypoint.sh`、`docs/architecture.md`、`docs/configuration.md`、`docs/development.md` 和浏览器 localStorage 验证步骤。
 - 修改 MySQL/NocoDB 版本时只改明确的 version surface，并在最终说明中标注兼容性和迁移风险。
 - 文档可以解释 demo 边界，但不要暗示本仓库已经具备生产备份、HA、审计、权限隔离或完整安全基线。
+- `.codex/` 是本机忽略的 symlink 映射，不要把其目标目录内容当成 repo-private source of truth，也不要把它们提交进本仓库。
 
 ## Runtime 不变量
 
