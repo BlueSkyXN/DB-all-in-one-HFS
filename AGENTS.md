@@ -20,6 +20,7 @@
 | --- | --- | ---: | --- |
 | `README.md` | Hugging Face Space card、项目介绍、本地运行和部署入口 | No | 修改项目定位、HF metadata、端口说明或公开文档入口时 |
 | `Dockerfile` | Docker Space 镜像构建入口；安装 MySQL、NocoDB、Redis、Nginx、Supervisor、Python runtime | No | 修改基础镜像、MySQL/NocoDB 版本、系统包、复制路径、用户、端口、healthcheck 时 |
+| `hfs-dev.toml` | HFS 范式对齐 manifest；声明 Pattern A、runtime 获取模式、Space root 模式、required files 和 release pin surface | No | 修改 HFS 分类、runtime 获取模式、发布态 pin 规则或新增必需文件时 |
 | `.dockerignore` | Docker build context 过滤 | No | 修改 build context、排除规则或避免把本地文件打进镜像时 |
 | `.codex/` | 本机 Codex agents/skills symlink 映射；当前不在 Git 跟踪内 | No | 仅在用户要求检查 Codex runtime、skill 或 agent 映射时读取；不要当作仓库权威内容 |
 | `docker/` | runtime 配置和脚本：entrypoint、env、Supervisor、Nginx、MySQL、ops-service、healthcheck | Yes | 修改 `docker/` 下任意文件前先读 `docker/AGENTS.md` |
