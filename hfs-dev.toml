@@ -1,0 +1,63 @@
+schema_version = 2
+standard = "hfs-dev"
+pattern = "A"
+runtime_mode = "artifact-at-build-time"
+space_root_mode = "repo-root"
+hfs_dir = "."
+public_port = 7860
+canonical_health_endpoint = "/healthz"
+release_pin_required = true
+required_files = [
+  "README.md",
+  "Dockerfile",
+  "docker/entrypoint.sh",
+  "docker/healthcheck.sh",
+  "docker/nginx.conf",
+  "docker/supervisord.conf",
+  "docker/ops_service.py",
+  "scripts/static-check.sh",
+  "scripts/smoke.sh",
+  "hfs-dev.toml",
+]
+
+[[release_pins]]
+name = "UBUNTU_VERSION"
+type = "image_ref"
+source = "Docker build arg"
+required_for_release = true
+dev_mutable_default_allowed = true
+release_requires_digest = true
+description = "Release builds should pass tag+digest, for example 24.04@sha256:<digest>."
+
+[[release_pins]]
+name = "MYSQL_SERVER_PACKAGE"
+type = "package_version"
+source = "Docker build arg"
+required_for_release = true
+dev_mutable_default_allowed = true
+description = "Release builds can pin the MySQL server APT package spec, for example mysql-server=<version>."
+
+[[release_pins]]
+name = "MYSQL_CLIENT_PACKAGE"
+type = "package_version"
+source = "Docker build arg"
+required_for_release = true
+dev_mutable_default_allowed = true
+description = "Release builds can pin the MySQL client APT package spec, for example mysql-client=<version>."
+
+[[release_pins]]
+name = "NOCODB_RELEASE"
+type = "artifact"
+source = "Docker build arg"
+required_for_release = true
+dev_mutable_default_allowed = true
+release_requires_checksum = true
+description = "Release builds must pass an explicit NocoDB release tag instead of resolving releases/latest."
+
+[[release_pins]]
+name = "NOCODB_SHA256"
+type = "checksum"
+source = "Docker build arg"
+required_for_release = true
+dev_mutable_default_allowed = false
+description = "SHA256 for the selected NocoDB release binary."
