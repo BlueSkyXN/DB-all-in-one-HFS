@@ -11,11 +11,18 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, quote, urlparse
 
 STARTED_AT = time.time()
 LOG_DIR = Path(os.environ.get("DATA_DIR", "/data")) / "logs"
 OPS_PORT = int(os.environ.get("OPS_PORT", "8081"))
 OPS_TOKEN = os.environ.get("OPS_TOKEN", "")
+SENSITIVE_ENV_KEYS = (
+    "MYSQL_ROOT_PASSWORD",
+    "MYSQL_PASSWORD",
+    "NC_AUTH_JWT_SECRET",
+    "OPS_TOKEN",
+)
 
 SERVICE_LOGS = {
     "supervisord": "supervisord.log",
@@ -33,10 +40,9 @@ SERVICE_LOGS = {
 def check_auth(handler: "OpsHandler") -> bool:
     """Validate OPS_TOKEN from header or query."""
     if not OPS_TOKEN:
-        return True
+        return False
     token = handler.headers.get("X-Ops-Token", "")
     if not token:
-        from urllib.parse import parse_qs, urlparse
         qs = parse_qs(urlparse(handler.path).query)
         token = qs.get("token", [""])[0]
     return hmac.compare_digest(token, OPS_TOKEN)
@@ -83,14 +89,15 @@ def check_nocodb() -> dict[str, Any]:
 
 
 def get_health() -> dict[str, Any]:
+    checks = {
+        "mysql": check_mysql(),
+        "redis": check_redis(),
+        "nocodb": check_nocodb(),
+    }
     return {
-        "status": "ok",
+        "status": "ok" if all(c.get("status") == "ok" for c in checks.values()) else "error",
         "uptime_seconds": round(get_uptime(), 1),
-        "checks": {
-            "mysql": check_mysql(),
-            "redis": check_redis(),
-            "nocodb": check_nocodb(),
-        }
+        "checks": checks,
     }
 
 
@@ -112,6 +119,31 @@ def get_status() -> dict[str, Any]:
         return {"error": str(e)}
 
 
+def parse_line_limit(raw: str) -> int:
+    """Parse and clamp requested log lines."""
+    try:
+        lines = int(raw)
+    except ValueError as exc:
+        raise ValueError("lines must be an integer") from exc
+    if lines < 1:
+        raise ValueError("lines must be greater than 0")
+    return min(lines, 1000)
+
+
+def redact_sensitive(text: str) -> str:
+    """Best-effort redaction for secrets that could appear in service logs."""
+    sensitive_values: set[str] = set()
+    for key in SENSITIVE_ENV_KEYS:
+        value = os.environ.get(key, "")
+        if len(value) >= 4:
+            sensitive_values.add(value)
+            sensitive_values.add(quote(value, safe=""))
+
+    for value in sorted(sensitive_values, key=len, reverse=True):
+        text = text.replace(value, "[REDACTED]")
+    return text
+
+
 def get_logs(service: str, lines: int = 100) -> str:
     """Get last N lines of a service log."""
     if service not in SERVICE_LOGS:
@@ -124,7 +156,7 @@ def get_logs(service: str, lines: int = 100) -> str:
             ["tail", f"-{lines}", str(log_file)],
             capture_output=True, text=True, timeout=5
         )
-        return result.stdout
+        return redact_sensitive(result.stdout)
     except Exception as e:
         return f"Error reading log: {e}"
 
@@ -150,7 +182,6 @@ class OpsHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        from urllib.parse import urlparse, parse_qs
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         qs = parse_qs(parsed.query)
@@ -158,23 +189,30 @@ class OpsHandler(BaseHTTPRequestHandler):
         # /healthz is unauthenticated
         if path == "/healthz":
             health = get_health()
-            all_ok = all(c.get("status") == "ok" for c in health["checks"].values())
-            self.send_json(health, 200 if all_ok else 503)
+            self.send_json(health, 200 if health["status"] == "ok" else 503)
             return
 
         # All other endpoints require auth
+        if not OPS_TOKEN:
+            self.send_json({"error": "ops token is not configured"}, 503)
+            return
         if not check_auth(self):
             self.send_json({"error": "unauthorized"}, 401)
             return
 
         if path == "/" or path == "/health":
-            self.send_json(get_health())
+            health = get_health()
+            self.send_json(health, 200 if health["status"] == "ok" else 503)
         elif path == "/status":
             self.send_json(get_status())
         elif path == "/logs":
             service = qs.get("service", ["nocodb"])[0]
-            lines = int(qs.get("lines", ["100"])[0])
-            self.send_text(get_logs(service, min(lines, 1000)))
+            try:
+                lines = parse_line_limit(qs.get("lines", ["100"])[0])
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            self.send_text(get_logs(service, lines))
         elif path == "/config":
             safe_keys = [
                 "MYSQL_DATABASE", "MYSQL_USER", "PORT", "NC_DISABLE_TELE",

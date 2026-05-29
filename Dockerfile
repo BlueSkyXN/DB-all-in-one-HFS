@@ -89,6 +89,8 @@ RUN set -eux; \
     else \
       echo "Using explicit NocoDB release: ${NOCODB_RELEASE}"; \
     fi; \
+    mkdir -p /usr/local/share/db-aio-hfs; \
+    printf '%s\n' "${NOCODB_RELEASE}" > /usr/local/share/db-aio-hfs/nocodb-release; \
     curl -fsSL "https://github.com/nocodb/nocodb/releases/download/${NOCODB_RELEASE}/Noco-${noco_arch}" \
       -o /usr/local/bin/nocodb; \
     if [ -n "${NOCODB_SHA256}" ]; then \

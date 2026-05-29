@@ -25,7 +25,13 @@ log() {
 : "${OPS_TOKEN:=}"
 : "${REDIS_PORT:=6379}"
 
-export DATA_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE
+BUILD_NOCODB_RELEASE_FILE="/usr/local/share/db-aio-hfs/nocodb-release"
+if [ -z "${NOCODB_RELEASE:-}" ] && [ -r "${BUILD_NOCODB_RELEASE_FILE}" ]; then
+  NOCODB_RELEASE="$(tr -d '\r\n' < "${BUILD_NOCODB_RELEASE_FILE}")"
+fi
+: "${NOCODB_RELEASE:=}"
+
+export DATA_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_RELEASE
 
 MYSQL_DATA_DIR="${DATA_DIR}/mysql"
 NOCODB_DATA_DIR="${DATA_DIR}/nocodb"
@@ -52,6 +58,13 @@ validate_fixed_port() {
   local expected="$3"
   if [ "${value}" != "${expected}" ]; then
     log "ERROR: ${name} must stay ${expected}; nginx.conf uses fixed internal routing."
+    return 1
+  fi
+}
+
+validate_data_dir() {
+  if [ "${DATA_DIR}" != "/data" ]; then
+    log "ERROR: DATA_DIR must stay /data; supervisor, nginx, MySQL socket, and healthcheck use fixed /data paths."
     return 1
   fi
 }
@@ -285,6 +298,8 @@ main() {
   log "  DB-all-in-one-HFS starting"
   log "=========================================="
 
+  validate_data_dir
+
   # Ensure directories exist
   mkdir -p "${MYSQL_DATA_DIR}" "${NOCODB_DATA_DIR}" "${DATA_DIR}/redis" \
            "${DATA_DIR}/config" "${DATA_DIR}/logs" "${DATA_DIR}/run/mysqld" \
@@ -353,6 +368,7 @@ main() {
     write_shell_env "OPS_PORT" "${OPS_PORT}"
     write_shell_env "DATA_DIR" "${DATA_DIR}"
     write_shell_env "NC_DEFAULT_LOCALE" "${NC_DEFAULT_LOCALE}"
+    write_shell_env "NOCODB_RELEASE" "${NOCODB_RELEASE}"
     [ -n "${NC_SITE_URL}" ] && write_shell_env "NC_SITE_URL" "${NC_SITE_URL}"
   } > "${DATA_DIR}/config/supervisor.env"
   chmod 600 "${DATA_DIR}/config/supervisor.env"
