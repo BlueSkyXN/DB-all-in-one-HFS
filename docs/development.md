@@ -14,6 +14,7 @@ scripts/static-check.sh
 
 包含：
 - `bash -n` 检查所有 shell 脚本语法
+- 如本机或 CI 环境存在 `shellcheck`，额外运行 ShellCheck；不存在时跳过
 - `python3 -m py_compile` 检查 ops_service.py
 - `git diff --check` 检查空白字符
 - `git diff --cached --check` 检查已暂存内容的空白字符

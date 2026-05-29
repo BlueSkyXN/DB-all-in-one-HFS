@@ -62,10 +62,11 @@ scripts/build.sh
 scripts/run-demo.sh
 
 # 后台运行
+# 先在当前 shell 中设置 OPS_TOKEN，再启动
 docker run -d --name db-aio-hfs \
   -p 7860:7860 \
   -v db-hfs-data:/data \
-  -e OPS_TOKEN=my_secret_token \
+  -e OPS_TOKEN="$OPS_TOKEN" \
   db-all-in-one-hfs:latest
 
 # Smoke 测试
@@ -81,10 +82,12 @@ scripts/build.sh db-all-in-one-hfs:test
 scripts/run-demo.sh db-all-in-one-hfs:test
 ```
 
-默认构建不传 `NOCODB_RELEASE` 时会自动取 GitHub 最新 release；如需固定版本，可在构建时传入：
+默认构建不传 `NOCODB_RELEASE` 时会自动取 GitHub 最新 release，只适合开发或临时 demo。发布态候选镜像应同时传入 release 和 SHA256：
 
 ```bash
-docker build --build-arg NOCODB_RELEASE=2026.05.2 -t db-all-in-one-hfs:latest .
+NOCODB_RELEASE=<release-tag> \
+NOCODB_SHA256=<sha256> \
+scripts/build.sh db-all-in-one-hfs:<release-tag>
 ```
 
 ## 读取本地自动生成的 OPS_TOKEN

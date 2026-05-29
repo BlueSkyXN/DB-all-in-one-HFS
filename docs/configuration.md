@@ -79,7 +79,7 @@ NC_REDIS_URL=redis://127.0.0.1:6379
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `DATA_DIR` | `/data` | 持久化数据根目录；当前运行配置应保持 `/data` |
+| `DATA_DIR` | `/data` | 固定持久化数据根目录；入口脚本会拒绝其他值 |
 
 ## 内部端口约束
 
@@ -128,6 +128,8 @@ HF Docker Space 对外入口固定为 Nginx `7860`。当前 `nginx.conf` 对 Noc
 鉴权方式：
 - Header: `X-Ops-Token: <token>`
 - Query: `?token=<token>`
+
+`/_ops/logs` 会对当前环境中已知 secret 做 best-effort 脱敏；但日志仍应按敏感诊断材料处理，不要复制到公开 issue、PR 或文档中。
 
 可查询的日志 service 名称：
 
