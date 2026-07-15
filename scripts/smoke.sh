@@ -8,7 +8,11 @@ FAIL=0
 check() {
   local desc="$1" url="$2" expected_code="${3:-200}"
   local code
-  code=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+  if ! code=$(curl -sS --retry 2 --retry-delay 1 \
+      --connect-timeout 10 --max-time 30 \
+      -o /dev/null -w "%{http_code}" "$url" 2>/dev/null); then
+    code="000"
+  fi
   if [ "$code" = "$expected_code" ]; then
     printf "  ✓ %s (HTTP %s)\n" "$desc" "$code"
     PASS=$((PASS + 1))
