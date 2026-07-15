@@ -85,6 +85,7 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/config
 - MySQL 是否运行（`/_ops/status`）
 - Socket 文件是否存在：`/data/run/mysqld/mysqld.sock`
 - `/_ops/config` 中的 `MYSQL_DATABASE`、`MYSQL_USER`、`PORT`
+- `/_ops/config` 中的 `NOCODB_IMAGE_REF` 是否为预期的 tag + digest
 - `/data/config/supervisor.env` 中的 `NC_DB` 是否指向 `127.0.0.1:3306`
 
 ### NocoDB 默认语言未生效

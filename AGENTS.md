@@ -51,11 +51,11 @@ cat docker/AGENTS.md
 | Command | Purpose | Scope | Sandbox notes |
 | --- | --- | --- | --- |
 | `scripts/static-check.sh` | 聚合静态检查：shell syntax、可选 ShellCheck、Python compile、`git diff --check` 和 `git diff --cached --check` | repo | 需要 `bash`、`python3`、`git`；有 `shellcheck` 时会额外运行；不需要 Docker 或网络 |
-| `bash -n docker/entrypoint.sh docker/healthcheck.sh scripts/*.sh` | Shell 语法验证 | shell scripts | 默认可运行；不启动服务 |
+| `bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh scripts/*.sh` | Shell 语法验证 | shell scripts | 默认可运行；不启动服务 |
 | `python3 -m py_compile docker/ops_service.py` | Python 语法验证 | `docker/ops_service.py` | 默认可运行；仅使用 Python 标准库 |
 | `git diff --check && git diff --cached --check` | 工作区和暂存区 whitespace 检查 | repo | 只读检查；需要 Git workspace |
-| `scripts/build.sh [image_tag]` | 构建 Docker 镜像，默认 `db-all-in-one-hfs:latest` | Docker image | 需要 Docker daemon；构建过程可能下载 apt、MySQL APT metadata 和 NocoDB release binary |
-| `NOCODB_RELEASE=<release-tag> NOCODB_SHA256=<sha256> scripts/build.sh db-all-in-one-hfs:<release-tag>` | 构建 release-pinned 候选镜像 | Docker image | 需要 Docker daemon 和网络；发布态应显式 pin NocoDB release + checksum |
+| `scripts/build.sh [image_tag]` | 构建 Docker 镜像，默认 `db-all-in-one-hfs:latest` | Docker image | 需要 Docker daemon；构建过程可能下载 apt/MySQL metadata，并拉取 pinned NocoDB OCI image |
+| `NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' scripts/build.sh db-all-in-one-hfs:<tag>` | 构建指定 NocoDB OCI 候选镜像 | Docker image | 需要 Docker daemon 和网络；image ref 必须保留 release tag + digest |
 | `docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -V 2>&1 \| grep http_sub_module` | 验证镜像 Nginx 包含 `ngx_http_sub_module` | built image | 需要 Docker daemon 和已构建镜像 |
 | `docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -t -c /etc/nginx/nginx.conf` | 验证镜像内 Nginx config | built image | 需要 Docker daemon 和已构建镜像 |
 | `scripts/run-demo.sh [image_tag]` | 本地启动 demo 容器，默认 image tag `db-all-in-one-hfs:latest` | local runtime | 需要 Docker daemon 和可用端口 `7860`；会删除同名运行容器 `db-aio-hfs-demo`，并复用 named volume `db-hfs-persist` |
@@ -82,9 +82,10 @@ cat docker/AGENTS.md
 - Nginx HTML 注入依赖 `ngx_http_sub_module` 和 `Accept-Encoding ""`；修改 `sub_filter` 或 `location /` 时同步验证镜像内 `nginx -V` 和 `nginx -t`。
 - Shell 脚本保持 `#!/usr/bin/env bash` 与 `set -euo pipefail`。
 - `docker/ops_service.py` 只使用 Python 标准库，不新增第三方 Python 依赖或包管理体系。
+- NocoDB runtime 来自 pinned 官方 OCI image，并完整保存在 `/opt/nocodb-runtime`；`docker/nocodb.sh` 负责启动其中的 musl Node runtime，不要退回已停止发布的 `Noco-linux-*` executable 下载路径。
 - 新增长期依赖前先确认是否可以用现有 Bash、Python 标准库、Dockerfile package 或 Nginx/Supervisor 配置解决。
 - 修改 MySQL/NocoDB 版本时只改明确的 version surface，并在最终说明中标注兼容性、迁移和 release pin 风险。
-- 发布态构建应显式 pin `UBUNTU_VERSION` digest、`MYSQL_SERVER_PACKAGE` / `MYSQL_CLIENT_PACKAGE` package spec、`NOCODB_RELEASE` 和 `NOCODB_SHA256`；开发默认值允许 mutable latest。
+- 发布态构建必须保持 `UBUNTU_VERSION`、`MYSQL_SERVER_PACKAGE` / `MYSQL_CLIENT_PACKAGE` 和 `NOCODB_IMAGE_REF` 不可变；当前默认值已经 pin 到 Ubuntu digest、MySQL 9.7.1 和 NocoDB `2026.07.0` OCI digest。
 
 ## 联动修改规则
 
@@ -125,7 +126,7 @@ scripts/static-check.sh
 等价拆分命令：
 
 ```bash
-bash -n docker/entrypoint.sh docker/healthcheck.sh scripts/*.sh
+bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh scripts/*.sh
 python3 -m py_compile docker/ops_service.py
 git diff --check
 git diff --cached --check
