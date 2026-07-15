@@ -13,25 +13,28 @@
 #     -v db-hfs-persist:/data \
 #     db-all-in-one-hfs
 
-ARG UBUNTU_VERSION=24.04
+ARG UBUNTU_VERSION=24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 ARG MYSQL_VERSION=9.7
-ARG MYSQL_SERVER_PACKAGE=mysql-server
-ARG MYSQL_CLIENT_PACKAGE=mysql-client
-ARG NOCODB_RELEASE=
-ARG NOCODB_SHA256=
+ARG MYSQL_SERVER_PACKAGE=mysql-server=9.7.1-1ubuntu24.04
+ARG MYSQL_CLIENT_PACKAGE=mysql-client=9.7.1-1ubuntu24.04
+ARG NOCODB_IMAGE_REF=nocodb/nocodb:2026.07.0@sha256:fb359673c42fb69058e880710e446f8039afeb64632ca8d8dfcfdcc407ebb058
 
+FROM ${NOCODB_IMAGE_REF} AS nocodb-runtime
 FROM ubuntu:${UBUNTU_VERSION}
 
+ARG UBUNTU_VERSION
 ARG MYSQL_VERSION
 ARG MYSQL_SERVER_PACKAGE
 ARG MYSQL_CLIENT_PACKAGE
-ARG NOCODB_RELEASE
-ARG NOCODB_SHA256
-ARG TARGETARCH=amd64
+ARG NOCODB_IMAGE_REF
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV UBUNTU_VERSION=${UBUNTU_VERSION}
 ENV MYSQL_VERSION=${MYSQL_VERSION}
-ENV NOCODB_RELEASE=${NOCODB_RELEASE}
+ENV MYSQL_SERVER_PACKAGE=${MYSQL_SERVER_PACKAGE}
+ENV MYSQL_CLIENT_PACKAGE=${MYSQL_CLIENT_PACKAGE}
+ENV NODE_ENV=production
+ENV NC_DOCKER=0.6
 ENV TZ=UTC
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
@@ -66,39 +69,35 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*; \
     mkdir -p /var/run/mysqld && chown mysql:mysql /var/run/mysqld
 
-# ─── NocoDB ──────────────────────────────────────────────────────────────────
+# ─── NocoDB official OCI runtime ─────────────────────────────────────────────
+# NocoDB stopped publishing standalone executables after 2026.06.1. Keep the
+# upstream image rootfs intact under /opt and run its musl-linked Node runtime
+# from the Ubuntu/MySQL container instead of rebuilding upstream node_modules.
+COPY --from=nocodb-runtime / /opt/nocodb-runtime
+
 RUN set -eux; \
-    case "${TARGETARCH}" in \
-      amd64) noco_arch="linux-x64" ;; \
-      arm64) noco_arch="linux-arm64" ;; \
-      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) musl_arch="x86_64" ;; \
+      arm64) musl_arch="aarch64" ;; \
+      *) echo "Unsupported architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
     esac; \
-    if [ -z "${NOCODB_RELEASE}" ]; then \
-      latest_url="$(curl -fsSL -L -o /dev/null -w '%{url_effective}' https://github.com/nocodb/nocodb/releases/latest)"; \
-      if [ -z "${latest_url}" ]; then \
-        echo "ERROR: Failed to resolve latest NocoDB release (no redirect URL)." >&2; \
-        exit 1; \
-      fi; \
-      NOCODB_RELEASE="${latest_url%/}"; \
-      NOCODB_RELEASE="${NOCODB_RELEASE##*/}"; \
-      if [ -z "${NOCODB_RELEASE}" ]; then \
-        echo "ERROR: Failed to parse NocoDB release tag from: ${latest_url}" >&2; \
-        exit 1; \
-      fi; \
-      echo "Resolved latest NocoDB release: ${NOCODB_RELEASE}"; \
-    else \
-      echo "Using explicit NocoDB release: ${NOCODB_RELEASE}"; \
-    fi; \
+    musl_loader="ld-musl-${musl_arch}.so.1"; \
+    test -x "/opt/nocodb-runtime/lib/${musl_loader}"; \
+    test -x /opt/nocodb-runtime/usr/local/bin/node; \
+    test -r /opt/nocodb-runtime/usr/src/app/docker/index.js; \
+    ln -s "/opt/nocodb-runtime/lib/${musl_loader}" "/lib/${musl_loader}"; \
+    printf '%s\n' \
+      /opt/nocodb-runtime/lib \
+      /opt/nocodb-runtime/usr/lib \
+      > "/etc/ld-musl-${musl_arch}.path"; \
+    mkdir -p /usr/src; \
+    ln -s /opt/nocodb-runtime/usr/src/app /usr/src/app; \
+    ln -s /opt/nocodb-runtime/usr/src/appEntry /usr/src/appEntry; \
+    ln -s /opt/nocodb-runtime/usr/local/bin/node /usr/local/bin/node; \
+    ln -s /opt/nocodb-runtime/usr/local/bin/node /usr/local/bin/nodejs; \
     mkdir -p /usr/local/share/db-aio-hfs; \
-    printf '%s\n' "${NOCODB_RELEASE}" > /usr/local/share/db-aio-hfs/nocodb-release; \
-    curl -fsSL "https://github.com/nocodb/nocodb/releases/download/${NOCODB_RELEASE}/Noco-${noco_arch}" \
-      -o /usr/local/bin/nocodb; \
-    if [ -n "${NOCODB_SHA256}" ]; then \
-      echo "${NOCODB_SHA256}  /usr/local/bin/nocodb" | sha256sum -c -; \
-    else \
-      echo "WARNING: NOCODB_SHA256 is not set; this build is not release-pinned."; \
-    fi; \
-    chmod +x /usr/local/bin/nocodb
+    printf '%s\n' "${NOCODB_IMAGE_REF}" \
+      > /usr/local/share/db-aio-hfs/nocodb-image-ref
 
 # ─── Non-root runtime user (UID 1000 for HF Spaces) ─────────────────────────
 RUN set -eux; \
@@ -128,11 +127,13 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/entrypoint.sh /usr/local/bin/db-aio-entrypoint
 COPY docker/healthcheck.sh /usr/local/bin/db-aio-healthcheck
+COPY docker/nocodb.sh /usr/local/bin/db-aio-nocodb
 COPY docker/ops_service.py /usr/local/bin/db-ops-service
 
 RUN chmod +x \
       /usr/local/bin/db-aio-entrypoint \
       /usr/local/bin/db-aio-healthcheck \
+      /usr/local/bin/db-aio-nocodb \
       /usr/local/bin/db-ops-service
 
 USER 1000

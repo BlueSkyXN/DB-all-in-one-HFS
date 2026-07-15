@@ -82,13 +82,17 @@ scripts/build.sh db-all-in-one-hfs:test
 scripts/run-demo.sh db-all-in-one-hfs:test
 ```
 
-默认构建不传 `NOCODB_RELEASE` 时会自动取 GitHub 最新 release，只适合开发或临时 demo。发布态候选镜像应同时传入 release 和 SHA256：
+Space build 无法依赖运行时变量补齐 Docker build pin，因此提交到 Space 的 Dockerfile 默认值本身必须是不可变候选。更新版本时使用完整的 tag/version + digest：
 
 ```bash
-NOCODB_RELEASE=<release-tag> \
-NOCODB_SHA256=<sha256> \
-scripts/build.sh db-all-in-one-hfs:<release-tag>
+UBUNTU_VERSION='24.04@sha256:<digest>' \
+MYSQL_SERVER_PACKAGE='mysql-server=<version>' \
+MYSQL_CLIENT_PACKAGE='mysql-client=<version>' \
+NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' \
+scripts/build.sh db-all-in-one-hfs:<tag>
 ```
+
+NocoDB `2026.06.1` 之后不再发布 standalone executable；部署构建从 pinned 官方 OCI image 复制 NocoDB runtime，不再访问 `Noco-linux-*` release asset。
 
 ## 读取本地自动生成的 OPS_TOKEN
 
@@ -129,4 +133,4 @@ docker exec db-aio-hfs bash -lc '
 - 本方案为 Demo/PoC 用途，不建议承载生产数据
 - HF Spaces 免费层可能有资源限制和冷启动
 - 密钥在首次启动时自动生成并持久化，挂载卷不丢失
-- 改动 `MYSQL_VERSION` 或 `NOCODB_RELEASE` 属于版本升级，需重新构建并单独验证兼容性
+- 改动 `MYSQL_VERSION`、MySQL package pin 或 `NOCODB_IMAGE_REF` 属于版本升级，需重新构建并单独验证兼容性

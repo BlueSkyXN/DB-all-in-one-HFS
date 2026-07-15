@@ -12,6 +12,7 @@ required_files = [
   "Dockerfile",
   "docker/entrypoint.sh",
   "docker/healthcheck.sh",
+  "docker/nocodb.sh",
   "docker/nginx.conf",
   "docker/supervisord.conf",
   "docker/ops_service.py",
@@ -24,40 +25,36 @@ required_files = [
 name = "UBUNTU_VERSION"
 type = "image_ref"
 source = "Docker build arg"
+current_dev_default = "24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
 required_for_release = true
-dev_mutable_default_allowed = true
+dev_mutable_default_allowed = false
 release_requires_digest = true
-description = "Release builds should pass tag+digest, for example 24.04@sha256:<digest>."
+description = "Ubuntu 24.04 LTS base image pinned by OCI index digest."
 
 [[release_pins]]
 name = "MYSQL_SERVER_PACKAGE"
 type = "package_version"
 source = "Docker build arg"
+current_dev_default = "mysql-server=9.7.1-1ubuntu24.04"
 required_for_release = true
-dev_mutable_default_allowed = true
-description = "Release builds can pin the MySQL server APT package spec, for example mysql-server=<version>."
+dev_mutable_default_allowed = false
+description = "Oracle MySQL 9.7 LTS server package pinned to the audited security patch release."
 
 [[release_pins]]
 name = "MYSQL_CLIENT_PACKAGE"
 type = "package_version"
 source = "Docker build arg"
-required_for_release = true
-dev_mutable_default_allowed = true
-description = "Release builds can pin the MySQL client APT package spec, for example mysql-client=<version>."
-
-[[release_pins]]
-name = "NOCODB_RELEASE"
-type = "artifact"
-source = "Docker build arg"
-required_for_release = true
-dev_mutable_default_allowed = true
-release_requires_checksum = true
-description = "Release builds must pass an explicit NocoDB release tag instead of resolving releases/latest."
-
-[[release_pins]]
-name = "NOCODB_SHA256"
-type = "checksum"
-source = "Docker build arg"
+current_dev_default = "mysql-client=9.7.1-1ubuntu24.04"
 required_for_release = true
 dev_mutable_default_allowed = false
-description = "SHA256 for the selected NocoDB release binary."
+description = "Oracle MySQL 9.7 LTS client package aligned with the server package."
+
+[[release_pins]]
+name = "NOCODB_IMAGE_REF"
+type = "image_ref"
+source = "Docker build arg and multi-stage OCI source"
+current_dev_default = "nocodb/nocodb:2026.07.0@sha256:fb359673c42fb69058e880710e446f8039afeb64632ca8d8dfcfdcc407ebb058"
+required_for_release = true
+dev_mutable_default_allowed = false
+release_requires_digest = true
+description = "Official NocoDB OCI image pinned by release tag and multi-architecture digest."

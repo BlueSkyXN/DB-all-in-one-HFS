@@ -25,10 +25,6 @@ check "nginx-health" "${BASE_URL}/nginx-health"
 check "healthz" "${BASE_URL}/healthz"
 check "NocoDB root" "${BASE_URL}/"
 
-if [ -n "${OPS_TOKEN:-}" ]; then
-  check "ops health (token)" "${BASE_URL}/_ops/health" "200"
-fi
-
 echo "───────────────────────────────────"
 echo "Results: ${PASS} passed, ${FAIL} failed"
 

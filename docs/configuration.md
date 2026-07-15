@@ -38,6 +38,7 @@
 ```text
 NC_DB=mysql2://127.0.0.1:3306?u=<MYSQL_USER>&p=<MYSQL_PASSWORD>&d=<MYSQL_DATABASE>
 NC_APP_DATA_DIR=/data/nocodb
+NC_TOOL_DIR=/data/nocodb
 NC_CACHE_REDIS_URL=redis://127.0.0.1:6379
 NC_REDIS_URL=redis://127.0.0.1:6379
 ```
@@ -65,15 +66,13 @@ NC_REDIS_URL=redis://127.0.0.1:6379
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `UBUNTU_VERSION` | `24.04` | 基础镜像版本 |
+| `UBUNTU_VERSION` | `24.04@sha256:4fbb…` | Ubuntu 24.04 LTS 基础镜像 tag + OCI index digest |
 | `MYSQL_VERSION` | `9.7` | Oracle MySQL APT channel |
-| `MYSQL_SERVER_PACKAGE` | `mysql-server` | MySQL server APT package spec；发布态可设置为 `mysql-server=<version>` |
-| `MYSQL_CLIENT_PACKAGE` | `mysql-client` | MySQL client APT package spec；发布态可设置为 `mysql-client=<version>` |
-| `NOCODB_RELEASE` | (auto) | 未设置时构建时自动从 `https://github.com/nocodb/nocodb/releases/latest` 解析最新版；设置值时固定对应 tag |
-| `NOCODB_SHA256` | (空) | NocoDB release 二进制 SHA256；发布态构建建议设置，未设置时仅适合开发默认构建 |
-| `TARGETARCH` | `amd64` | NocoDB 二进制架构选择；支持 `amd64` 和 `arm64` |
+| `MYSQL_SERVER_PACKAGE` | `mysql-server=9.7.1-1ubuntu24.04` | MySQL 9.7.1 LTS server package spec |
+| `MYSQL_CLIENT_PACKAGE` | `mysql-client=9.7.1-1ubuntu24.04` | 与 server 对齐的 MySQL client package spec |
+| `NOCODB_IMAGE_REF` | `nocodb/nocodb:2026.07.0@sha256:fb359…` | 官方 NocoDB multi-arch OCI image，必须同时包含 release tag 和 digest |
 
-`UBUNTU_VERSION` 可使用 `24.04@sha256:<digest>` 这类 tag+digest 形式来 pin 基础镜像。`MYSQL_SERVER_PACKAGE` 和 `MYSQL_CLIENT_PACKAGE` 默认跟随 MySQL APT channel；发布态如需更强复现性，应传入带版本 package spec。`NOCODB_RELEASE` 为空时的 auto/latest 解析只适合作为开发默认值；发布态应显式设置 `NOCODB_RELEASE` 和 `NOCODB_SHA256`。
+当前默认 build args 已全部 immutable pin。上游更新时应先核对官方 release、APT metadata 和 OCI digest，再成组更新版本与 digest。NocoDB `2026.06.1` 之后不再发布 standalone executable，因此 `NOCODB_IMAGE_REF` 是唯一受支持的 NocoDB build source。
 
 ### 通用
 
@@ -145,4 +144,4 @@ HF Docker Space 对外入口固定为 Nginx `7860`。当前 `nginx.conf` 对 Noc
 | `nocodb.err` | `/data/logs/nocodb.err` |
 | `nginx` | `/data/logs/nginx.log` |
 
-`/_ops/config` 当前只返回这些键：`MYSQL_DATABASE`、`MYSQL_USER`、`PORT`、`NC_DISABLE_TELE`、`OPS_PORT`、`REDIS_PORT`、`DATA_DIR`、`MYSQL_VERSION`、`NOCODB_RELEASE`、`NC_SITE_URL`、`NC_DEFAULT_LOCALE`。
+`/_ops/config` 当前只返回这些键：`MYSQL_DATABASE`、`MYSQL_USER`、`PORT`、`NC_DISABLE_TELE`、`OPS_PORT`、`REDIS_PORT`、`DATA_DIR`、`MYSQL_VERSION`、`MYSQL_SERVER_PACKAGE`、`MYSQL_CLIENT_PACKAGE`、`UBUNTU_VERSION`、`NOCODB_IMAGE_REF`、`NC_SITE_URL`、`NC_DEFAULT_LOCALE`。

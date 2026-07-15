@@ -20,7 +20,7 @@ pinned: false
 
 本仓库属于 **HFS Port Repository**：仓库根目录同时是 GitHub 维护根和 Hugging Face Space root。不要把 Space 文件迁入 `cloud/hfs/`；`cloud/hfs/` 只适用于自研产品仓的 HFS Deployment Adapter。
 
-Runtime 获取模式属于 **artifact-at-build-time**：镜像 build 阶段安装 MySQL APT 包，并下载 NocoDB release binary。开发默认值允许跟随最新 release；发布态构建应显式 pin build 输入。
+Runtime 获取模式属于 **artifact-at-build-time**：镜像 build 阶段安装 MySQL APT 包，并从官方 NocoDB OCI image 复制其原生 runtime。Ubuntu、MySQL package 和 NocoDB image 默认值均使用经过审计的不可变 pin。
 
 ## 文档入口
 
@@ -74,16 +74,17 @@ scripts/smoke.sh http://localhost:7860
 
 ## 可复现构建
 
-默认构建会解析最新 NocoDB release，适合本地开发和临时 demo。发布态构建应显式指定 NocoDB release 和二进制 SHA256：
+默认构建当前固定为 Ubuntu 24.04、MySQL 9.7.1 LTS 和 NocoDB `2026.07.0` 的不可变候选。更新上游版本时必须同时更新 tag/version 和 digest：
 
 ```bash
-NOCODB_RELEASE=<release-tag> \
-NOCODB_SHA256=<sha256> \
-scripts/build.sh db-all-in-one-hfs:<release-tag>
+UBUNTU_VERSION='24.04@sha256:<digest>' \
+MYSQL_SERVER_PACKAGE='mysql-server=<version>' \
+MYSQL_CLIENT_PACKAGE='mysql-client=<version>' \
+NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' \
+scripts/build.sh db-all-in-one-hfs:<tag>
 ```
 
-如需 pin 基础镜像，可把 `UBUNTU_VERSION` 设置为 tag+digest 形式，例如 `24.04@sha256:<digest>`。
-如需进一步 pin MySQL APT 包，可通过 `MYSQL_SERVER_PACKAGE` 和 `MYSQL_CLIENT_PACKAGE` 传入带版本的 package spec。
+NocoDB 从 `2026.06.1` 起停止发布 standalone executable；本仓库因此不再下载 `Noco-linux-*`，而是使用带 digest 的官方 OCI image 作为 build-time artifact source。
 
 ## Hugging Face Space 部署
 

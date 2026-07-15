@@ -25,13 +25,13 @@ log() {
 : "${OPS_TOKEN:=}"
 : "${REDIS_PORT:=6379}"
 
-BUILD_NOCODB_RELEASE_FILE="/usr/local/share/db-aio-hfs/nocodb-release"
-if [ -z "${NOCODB_RELEASE:-}" ] && [ -r "${BUILD_NOCODB_RELEASE_FILE}" ]; then
-  NOCODB_RELEASE="$(tr -d '\r\n' < "${BUILD_NOCODB_RELEASE_FILE}")"
+BUILD_NOCODB_IMAGE_REF_FILE="/usr/local/share/db-aio-hfs/nocodb-image-ref"
+if [ -r "${BUILD_NOCODB_IMAGE_REF_FILE}" ]; then
+  NOCODB_IMAGE_REF="$(tr -d '\r\n' < "${BUILD_NOCODB_IMAGE_REF_FILE}")"
 fi
-: "${NOCODB_RELEASE:=}"
+: "${NOCODB_IMAGE_REF:=unknown}"
 
-export DATA_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_RELEASE
+export DATA_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_IMAGE_REF
 
 MYSQL_DATA_DIR="${DATA_DIR}/mysql"
 NOCODB_DATA_DIR="${DATA_DIR}/nocodb"
@@ -245,6 +245,7 @@ export_nocodb_env() {
 
   export NC_DB="mysql2://127.0.0.1:3306?u=${mysql_user_url}&p=${mysql_password_url}&d=${mysql_database_url}"
   export NC_APP_DATA_DIR="${NOCODB_DATA_DIR}"
+  export NC_TOOL_DIR="${NOCODB_DATA_DIR}"
   export NC_AUTH_JWT_SECRET
   export PORT
   export NC_DISABLE_TELE
@@ -314,6 +315,7 @@ main() {
 
   log "  MySQL database : ${MYSQL_DATABASE}"
   log "  MySQL user     : ${MYSQL_USER}"
+  log "  NocoDB image   : ${NOCODB_IMAGE_REF}"
   log "  NocoDB port    : ${PORT}"
   log "  Default locale : ${NC_DEFAULT_LOCALE}"
   log "  OPS port       : ${OPS_PORT}"
@@ -355,6 +357,7 @@ main() {
   {
     write_shell_env "NC_DB" "${NC_DB}"
     write_shell_env "NC_APP_DATA_DIR" "${NC_APP_DATA_DIR}"
+    write_shell_env "NC_TOOL_DIR" "${NC_TOOL_DIR}"
     write_shell_env "NC_AUTH_JWT_SECRET" "${NC_AUTH_JWT_SECRET}"
     write_shell_env "PORT" "${PORT}"
     write_shell_env "NC_DISABLE_TELE" "${NC_DISABLE_TELE}"
@@ -368,7 +371,7 @@ main() {
     write_shell_env "OPS_PORT" "${OPS_PORT}"
     write_shell_env "DATA_DIR" "${DATA_DIR}"
     write_shell_env "NC_DEFAULT_LOCALE" "${NC_DEFAULT_LOCALE}"
-    write_shell_env "NOCODB_RELEASE" "${NOCODB_RELEASE}"
+    write_shell_env "NOCODB_IMAGE_REF" "${NOCODB_IMAGE_REF}"
     [ -n "${NC_SITE_URL}" ] && write_shell_env "NC_SITE_URL" "${NC_SITE_URL}"
   } > "${DATA_DIR}/config/supervisor.env"
   chmod 600 "${DATA_DIR}/config/supervisor.env"

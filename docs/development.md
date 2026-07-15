@@ -25,10 +25,9 @@ scripts/static-check.sh
 # 构建镜像
 scripts/build.sh
 
-# 构建发布态候选镜像时显式 pin NocoDB release 和 SHA256
-NOCODB_RELEASE=<release-tag> \
-NOCODB_SHA256=<sha256> \
-scripts/build.sh db-all-in-one-hfs:<release-tag>
+# 覆盖默认 pin 构建新的上游候选镜像
+NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' \
+scripts/build.sh db-all-in-one-hfs:<tag>
 
 # 运行 demo
 scripts/run-demo.sh
@@ -45,7 +44,7 @@ scripts/smoke.sh http://localhost:7860
 | `scripts/run-demo.sh` | image tag | `db-all-in-one-hfs:latest` |
 | `scripts/smoke.sh` | base URL | `http://localhost:7860` |
 
-`scripts/build.sh` 会透传 `UBUNTU_VERSION`、`MYSQL_VERSION`、`MYSQL_SERVER_PACKAGE`、`MYSQL_CLIENT_PACKAGE`、`NOCODB_RELEASE` 和 `NOCODB_SHA256` 环境变量为 Docker build args。默认 auto/latest 构建用于开发；发布态构建需要显式 pin release 和 checksum，并可按需 pin MySQL package spec。
+`scripts/build.sh` 会透传 `UBUNTU_VERSION`、`MYSQL_VERSION`、`MYSQL_SERVER_PACKAGE`、`MYSQL_CLIENT_PACKAGE` 和 `NOCODB_IMAGE_REF` 环境变量为 Docker build args。仓库默认值已经 immutable pin；覆盖时必须保留 Ubuntu/NocoDB digest，并保持 MySQL server/client package 版本一致。
 
 Docker healthcheck 与 smoke 脚本不是同一层检查：
 
@@ -59,7 +58,7 @@ ops 鉴权端点建议用 `curl -H "X-Ops-Token: $OPS_TOKEN"` 单独验证，不
 ### Shell 脚本修改
 
 ```bash
-bash -n docker/entrypoint.sh docker/healthcheck.sh scripts/*.sh
+bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh scripts/*.sh
 ```
 
 ### Python 修改
@@ -104,6 +103,7 @@ python3 -m py_compile docker/ops_service.py
 | --- | --- |
 | `Dockerfile` | 构建入口，系统包安装，资产复制 |
 | `docker/entrypoint.sh` | 启动初始化：secret 生成、MySQL bootstrap、启动 supervisord |
+| `docker/nocodb.sh` | 启动 pinned 官方 NocoDB OCI runtime |
 | `docker/supervisord.conf` | 进程管理配置 |
 | `docker/nginx.conf` | 反向代理路由 |
 | `docker/my.cnf` | MySQL 性能和日志配置 |

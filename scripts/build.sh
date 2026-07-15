@@ -8,8 +8,7 @@ for name in \
   MYSQL_VERSION \
   MYSQL_SERVER_PACKAGE \
   MYSQL_CLIENT_PACKAGE \
-  NOCODB_RELEASE \
-  NOCODB_SHA256
+  NOCODB_IMAGE_REF
 do
   value="${!name:-}"
   if [ -n "$value" ]; then

@@ -5,6 +5,7 @@ echo "=== Shell syntax check ==="
 shell_files=(
   docker/entrypoint.sh
   docker/healthcheck.sh
+  docker/nocodb.sh
   scripts/build.sh
   scripts/run-demo.sh
   scripts/smoke.sh
