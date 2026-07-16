@@ -32,7 +32,7 @@
 
 所有进程都在镜像的 `USER 1000` 下运行。镜像构建阶段安装 MySQL、Redis、Nginx、Supervisor 和 Python，并把 pinned 官方 NocoDB OCI image rootfs 复制到 `/opt/nocodb-runtime`。`docker/nocodb.sh` 使用该 rootfs 自带的 musl Node runtime 启动 NocoDB，运行阶段不需要 root 权限。
 
-MySQL 9.7 通过 `docker/my.cnf` 启用 `container_aware`，按容器 cgroup 限制识别可用内存；同时关闭 `innodb_numa_interleave`，避免在 HF Space 受限容器中调用不允许的 NUMA 内存策略接口。
+MySQL 9.7 通过 `docker/my.cnf` 启用 `container_aware`，按容器 cgroup 限制识别可用内存；同时关闭 InnoDB buffer pool 的 `innodb_numa_interleave`，避免启动阶段执行不允许的 NUMA 内存策略调用。该参数不控制 MySQL TempTable engine 自身的 libnuma allocation；后者在 HF Space 上可能留下非致命的裸 `mbind: Operation not permitted`，但不影响当前 TempTable allocation 结果或服务健康。
 
 ## 启动流程
 
