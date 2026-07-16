@@ -38,16 +38,13 @@ if "mysqld" not in config:
     raise SystemExit(f"{path}: missing [mysqld] section")
 
 expected = {
-    "container_aware": {"1", "on", "true", "yes"},
-    "innodb_numa_interleave": {"0", "off", "false", "no"},
+    "container_aware": "on",
+    "innodb_numa_interleave": "off",
 }
-for option, accepted_values in expected.items():
+for option, expected_value in expected.items():
     value = config["mysqld"].get(option)
-    if value is None or value.strip().lower() not in accepted_values:
-        expected_text = "/".join(sorted(accepted_values))
-        raise SystemExit(
-            f"{path}: {option} must be configured as {expected_text}"
-        )
+    if value is None or value.strip().lower() != expected_value:
+        raise SystemExit(f"{path}: {option} must be configured as {expected_value}")
     print(f"  {option}={value.strip()}")
 PY
 
