@@ -81,9 +81,11 @@ NC_REDIS_URL=redis://127.0.0.1:6379
 | 参数 | 值 | 说明 |
 | --- | --- | --- |
 | `container_aware` | `ON` | 使用 cgroup 暴露的内存限制，避免按宿主机总内存进行自动调优 |
-| `innodb_numa_interleave` | `OFF` | HF Space 容器不允许 `set_mempolicy`/`mbind`，关闭 NUMA interleave 以避免无效调用和权限告警 |
+| `innodb_numa_interleave` | `OFF` | 关闭 InnoDB buffer pool 的 NUMA interleave，消除启动阶段带 `MY-011873`/`MY-011879`/`MY-011875` 的权限告警 |
 
 这两个参数不能在 MySQL 运行后动态修改。变更后必须重新构建并重启容器；`scripts/static-check.sh` 会检查它们没有被遗漏或反向配置。
+
+`innodb_numa_interleave` 只控制 InnoDB。MySQL 9.7 的 TempTable engine 在启用 libnuma 的官方构建中仍会调用 `numa_alloc_local()`；HF Space 禁止对应的 `mbind` 时，错误日志可能出现不带 MySQL error code 的单行 `mbind: Operation not permitted`。libnuma 在当前默认配置下仍返回已分配内存，因此该行本身不表示查询或 MySQL 启动失败。MySQL 9.7 没有单独关闭 TempTable NUMA allocation 的运行参数；本仓库保留默认 TempTable engine，避免仅为消除日志而切换到 `MEMORY` engine 并改变内部临时表的性能和兼容性。
 
 ### 通用
 

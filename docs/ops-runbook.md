@@ -79,6 +79,12 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/config
 - 磁盘空间是否充足
 - 如果复用旧 `/data`，确认当前 `MYSQL_ROOT_PASSWORD` 与已初始化数据目录一致
 
+### MySQL NUMA 日志判读
+
+`docker/my.cnf` 已关闭 InnoDB buffer pool 的 NUMA interleave。正常部署不应出现 `MY-011873`、`MY-011879` 或 `MY-011875`；这些带 MySQL error code 的告警如果重新出现，说明启动配置没有生效。
+
+MySQL 9.7 的 TempTable engine 没有独立的 NUMA 开关。HF Space 拒绝其 libnuma `mbind` 时，日志仍可能出现不带时间戳和 MySQL error code 的单行 `mbind: Operation not permitted`。当前 libnuma 会保留已分配内存，该行属于非致命的上游限制；结合 `/_ops/health`、`/_ops/status` 和相邻的 MySQL error code 判断，不要仅凭这条裸日志认定服务故障。本仓库不通过切换 `internal_tmp_mem_storage_engine=MEMORY` 来静默它，因为这会改变内部临时表的性能和兼容性。
+
 ### NocoDB 无法连接 MySQL
 
 检查：
