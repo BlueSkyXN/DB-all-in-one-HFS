@@ -32,6 +32,8 @@
 
 所有进程都在镜像的 `USER 1000` 下运行。镜像构建阶段安装 MySQL、Redis、Nginx、Supervisor 和 Python，并把 pinned 官方 NocoDB OCI image rootfs 复制到 `/opt/nocodb-runtime`。`docker/nocodb.sh` 使用该 rootfs 自带的 musl Node runtime 启动 NocoDB，运行阶段不需要 root 权限。
 
+MySQL 9.7 通过 `docker/my.cnf` 启用 `container_aware`，按容器 cgroup 限制识别可用内存；同时关闭 `innodb_numa_interleave`，避免在 HF Space 受限容器中调用不允许的 NUMA 内存策略接口。
+
 ## 启动流程
 
 1. `tini` 作为 PID 1 init 进程

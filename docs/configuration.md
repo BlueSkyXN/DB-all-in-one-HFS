@@ -74,6 +74,17 @@ NC_REDIS_URL=redis://127.0.0.1:6379
 
 当前默认 build args 已全部 immutable pin。上游更新时应先核对官方 release、APT metadata 和 OCI digest，再成组更新版本与 digest。NocoDB `2026.06.1` 之后不再发布 standalone executable，因此 `NOCODB_IMAGE_REF` 是唯一受支持的 NocoDB build source。
 
+### MySQL 容器运行参数
+
+`docker/my.cnf` 显式设置以下 MySQL 9.7 只读启动参数：
+
+| 参数 | 值 | 说明 |
+| --- | --- | --- |
+| `container_aware` | `ON` | 使用 cgroup 暴露的内存限制，避免按宿主机总内存进行自动调优 |
+| `innodb_numa_interleave` | `OFF` | HF Space 容器不允许 `set_mempolicy`/`mbind`，关闭 NUMA interleave 以避免无效调用和权限告警 |
+
+这两个参数不能在 MySQL 运行后动态修改。变更后必须重新构建并重启容器；`scripts/static-check.sh` 会检查它们没有被遗漏或反向配置。
+
 ### 通用
 
 | 变量 | 默认值 | 说明 |
