@@ -47,7 +47,7 @@ nginx:7860
 - 只有 Nginx `7860` 对外；MySQL、Redis、NocoDB 和 `ops-service` 只绑定 `127.0.0.1`
 - NocoDB 使用 MySQL 作为业务数据库，使用 Redis 作为缓存层
 - `ops-service` 提供只读诊断面，外部路径为 `/_ops/`
-- `/data` 是唯一持久化边界，包含数据库、日志、Redis 快照和生成的配置
+- `/data` 持久化普通文件（NocoDB 数据、配置、日志、MySQL 逻辑备份）；MySQL/Redis 运行数据在容器本地 `/home/user`，每次启动自动从最新逻辑备份恢复
 - 首次启动自动生成缺省 secret，并持久化到 `/data/config/generated.env`
 
 ## 本地运行
@@ -90,7 +90,7 @@ NocoDB 从 `2026.06.1` 起停止发布 standalone executable；本仓库因此�
 
 1. 新建 Space，SDK 选择 **Docker**。
 2. 推送本仓库文件到 Space 根目录。
-3. 建议启用 Persistent Storage，否则重建后 `/data` 中的 MySQL 数据和生成 secret 会丢失。
+3. 建议挂载 volume（例如 HF bucket）到 `/data`，否则重建后 NocoDB 数据、MySQL 逻辑备份和生成 secret 会丢失。bucket 只承载普通文件；MySQL 运行数据按设计保持在容器本地，通过逻辑备份恢复。
 4. 在 Space Settings -> Variables 设置：
    - `NC_SITE_URL`（可选，设置为 Space 公网 URL 时可改善分享链接）
    - `NC_DEFAULT_LOCALE`（可选，默认 `zh-Hans`；通过 wrapper 初始化 NocoDB UI 默认语言）

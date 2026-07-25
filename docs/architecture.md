@@ -81,22 +81,27 @@ Nginx 路由：
 
 ## 持久化
 
-所有运行时数据存储在 `/data` 卷：
+`/data` 卷只承载普通文件语义安全的持久数据。HF bucket volume 是 FUSE 对象存储，不支持 unix socket 和 rename 语义，因此 MySQL/Redis 运行数据放在容器本地盘，通过逻辑备份恢复实现跨重启持久化：
 
 ```
 /data/
 ├── config/          # generated.env, supervisor.env
-├── logs/            # supervisor、MySQL、Redis、NocoDB、Nginx stdout 日志
-├── mysql/           # MySQL 数据文件
-├── nocodb/          # NocoDB 元数据和上传文件
-├── redis/           # Redis RDB 快照
+├── logs/            # supervisor、MySQL、Redis、NocoDB、Nginx、mysql-backup stdout 日志
+├── backups/         # mysql-backup sidecar 定期写入的 nocodb-*.sql.gz 逻辑备份
+└── nocodb/          # NocoDB 应用数据和上传文件
+
+/home/user/          # 容器本地（重启即清空）
+├── mysql/           # MySQL 数据文件（InnoDB redo 需要 POSIX rename 语义）
+├── redis/           # Redis RDB 快照（缓存，可丢失）
 └── run/             # PID 文件、socket、redis.conf、nginx temp
     ├── db-aio-public/  # Nginx 公开的 wrapper 静态初始化文件
     ├── mysqld/
     └── nginx/
 ```
 
-`DATA_DIR` 在入口脚本中有默认值，但当前镜像的 Supervisor、MySQL、Nginx、healthcheck 和脚本都围绕 `/data` 写死。不要把它当成可随意改动的运行时开关。
+启动时 `entrypoint.sh` 在容器本地初始化 MySQL 数据目录，并自动恢复 `/data/backups/` 中最新可读的 `nocodb-*.sql.gz`（从新到旧依次尝试，跳过上传不完整的文件）。`mysql-backup` sidecar 每 `MYSQL_BACKUP_INTERVAL` 秒（默认 300）写入一份新的逻辑备份，保留最新 `MYSQL_BACKUP_KEEP` 份（默认 6），优雅停机时再写一份。跨重启/重建的数据窗口最多是一个备份间隔。
+
+`DATA_DIR` 在入口脚本中有默认值，但当前镜像的 Supervisor、MySQL、Nginx、healthcheck 和脚本都围绕 `/data` 与 `/home/user` 写死。不要把它当成可随意改动的运行时开关。
 
 ## 安全边界
 

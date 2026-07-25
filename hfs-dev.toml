@@ -12,6 +12,7 @@ required_files = [
   "Dockerfile",
   "docker/entrypoint.sh",
   "docker/healthcheck.sh",
+  "docker/mysql-backup.sh",
   "docker/nocodb.sh",
   "docker/nginx.conf",
   "docker/supervisord.conf",

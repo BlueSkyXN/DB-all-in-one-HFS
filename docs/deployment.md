@@ -113,20 +113,27 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/status
 
 ## 数据备份与恢复边界
 
-MySQL 数据存储在 `/data/mysql`。备份建议：
+MySQL 运行数据位于容器本地 `/home/user/mysql`——对象存储 volume（如 HF bucket）是 FUSE 挂载，无法承载 InnoDB redo log 依赖的 rename 语义（实测会触发 `log0write.cc` `ib::fatal` 崩溃）。跨重启/重建的持久化通过逻辑备份完成：
+
+- `mysql-backup` sidecar 每 `MYSQL_BACKUP_INTERVAL` 秒（默认 300）把 `MYSQL_DATABASE` 逻辑备份到 `/data/backups/nocodb-<timestamp>.sql.gz`，保留最新 `MYSQL_BACKUP_KEEP` 份（默认 6），优雅停机时再写一份
+- 备份文件只新建/删除，不做 tmp+rename，适配对象存储语义；每份写入后做 `gzip -t` 完整性检查
+- 每次启动时 entrypoint 在容器本地重新初始化 MySQL，并从新到旧依次尝试恢复 `/data/backups/` 中的备份，自动跳过损坏或上传不完整的文件
+- 跨重启/重建最多丢失一个备份间隔的数据；未挂载 volume 时备份随容器一起丢失
+
+手动备份（容器运行时）：
 
 ```bash
 docker exec db-aio-hfs bash -lc '
   . /data/config/generated.env
   mysqldump --socket=/home/user/run/mysqld/mysqld.sock \
     -u root -p"$_GEN_MYSQL_ROOT_PASSWORD" \
-    --all-databases
+    --databases nocodb
 ' > backup.sql
 ```
 
 如果容器名来自 `scripts/run-demo.sh`，应使用 `db-aio-hfs-demo`。
 
-恢复和长期备份策略不在本 demo 内自动处理。生产数据请使用独立 MySQL 服务和正式备份方案。
+长期归档、跨地域容灾和生产级备份策略不在本 demo 内自动处理。生产数据请使用独立 MySQL 服务和正式备份方案。
 
 ## 注意事项
 

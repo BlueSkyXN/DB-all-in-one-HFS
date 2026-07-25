@@ -63,6 +63,14 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/config
 
 ## 常见问题排查
 
+### 备份与恢复检查
+
+- 备份 sidecar 日志：`/_ops/logs?service=mysql.backup`
+- 备份文件：`/data/backups/nocodb-*.sql.gz`（挂载 volume 时位于 bucket 内）
+- 启动恢复日志：entrypoint 输出 `Restoring MySQL backup: ...` 或 `No usable MySQL backup found`
+- 恢复按文件名从新到旧依次尝试；最新备份损坏或上传不完整时会自动尝试更早的备份
+- 如果启动日志出现 InnoDB `log0write.cc` `ib::fatal` 或 `Failed to resize unused redo log file`，检查 MySQL 数据目录是否被错误地放到了 `/data` volume 上；正确位置是容器本地 `/home/user/mysql`
+
 ### 502 Bad Gateway
 
 排查顺序：

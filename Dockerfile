@@ -113,18 +113,20 @@ RUN set -eux; \
 ENV HOME=/home/user
 
 # ─── Runtime directories ─────────────────────────────────────────────────────
-# /data holds persistent plain-file state (volume-safe). /home/user/run holds
-# ephemeral runtime state (unix sockets, pids, nginx temp) and must stay on
-# container-local disk because HF bucket volumes cannot host unix sockets.
+# /data holds persistent plain-file state (volume-safe: app data, config,
+# logs, logical backups). /home/user holds state that object-storage volumes
+# cannot host: MySQL/Redis live data (InnoDB redo / RDB renames) and runtime
+# files (unix sockets, pids, nginx temp).
 RUN mkdir -p \
-      /data/mysql /data/nocodb /data/redis /data/config /data/logs \
+      /data/nocodb /data/config /data/logs /data/backups \
+      /home/user/mysql /home/user/redis \
       /home/user/run/mysqld /home/user/run/db-aio-public \
       /home/user/run/nginx/client_body /home/user/run/nginx/proxy \
       /home/user/run/nginx/fastcgi /home/user/run/nginx/uwsgi \
       /home/user/run/nginx/scgi \
     && chown -R 1000:1000 /data \
     && chmod -R 755 /data \
-    && chown -R 1000:1000 /home/user/run \
+    && chown -R 1000:1000 /home/user \
     && rm -f /etc/nginx/sites-enabled/default
 
 # ─── Copy runtime configs and scripts ────────────────────────────────────────
@@ -134,12 +136,14 @@ COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/entrypoint.sh /usr/local/bin/db-aio-entrypoint
 COPY docker/healthcheck.sh /usr/local/bin/db-aio-healthcheck
 COPY docker/nocodb.sh /usr/local/bin/db-aio-nocodb
+COPY docker/mysql-backup.sh /usr/local/bin/db-aio-mysql-backup
 COPY docker/ops_service.py /usr/local/bin/db-ops-service
 
 RUN chmod +x \
       /usr/local/bin/db-aio-entrypoint \
       /usr/local/bin/db-aio-healthcheck \
       /usr/local/bin/db-aio-nocodb \
+      /usr/local/bin/db-aio-mysql-backup \
       /usr/local/bin/db-ops-service
 
 USER 1000

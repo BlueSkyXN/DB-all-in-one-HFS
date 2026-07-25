@@ -19,7 +19,7 @@
 | `MYSQL_USER` | `nocodb` | NocoDB 使用的 MySQL 用户名 |
 | `MYSQL_PASSWORD` | (自动生成) | NocoDB 使用的 MySQL 密码 |
 
-`MYSQL_DATABASE` 和 `MYSQL_USER` 只能包含字母、数字和下划线。复用已有 `/data/mysql` 时，`MYSQL_ROOT_PASSWORD` 必须与已初始化数据目录中的 root 密码一致，否则启动阶段无法重新配置用户。
+`MYSQL_DATABASE` 和 `MYSQL_USER` 只能包含字母、数字和下划线。MySQL 数据目录位于容器本地 `/home/user/mysql`，每次启动重新初始化并从 `/data/backups` 恢复最新逻辑备份，root 密码每次启动按 `MYSQL_ROOT_PASSWORD` 重新设置，不存在历史数据目录密码不一致的问题。
 
 ### NocoDB
 
@@ -92,6 +92,8 @@ NC_REDIS_URL=redis://127.0.0.1:6379
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `DATA_DIR` | `/data` | 固定持久化数据根目录；入口脚本会拒绝其他值 |
+| `MYSQL_BACKUP_INTERVAL` | `300` | `mysql-backup` sidecar 的逻辑备份间隔（秒） |
+| `MYSQL_BACKUP_KEEP` | `6` | `/data/backups` 中保留的最新逻辑备份份数 |
 
 ## 内部端口约束
 
@@ -152,6 +154,8 @@ HF Docker Space 对外入口固定为 Nginx `7860`。当前 `nginx.conf` 对 Noc
 | `mysql.err` | `/data/logs/mysql.err` |
 | `mysql.error` | `/data/logs/mysql-error.log` |
 | `mysql.slow` | `/data/logs/mysql-slow.log` |
+| `mysql.backup` | `/data/logs/mysql-backup.log` |
+| `mysql.backup.err` | `/data/logs/mysql-backup.err` |
 | `redis` | `/data/logs/redis.log` |
 | `nocodb` | `/data/logs/nocodb.log` |
 | `nocodb.err` | `/data/logs/nocodb.err` |

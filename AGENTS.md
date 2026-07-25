@@ -51,7 +51,7 @@ cat docker/AGENTS.md
 | Command | Purpose | Scope | Sandbox notes |
 | --- | --- | --- | --- |
 | `scripts/static-check.sh` | 聚合静态检查：shell syntax、可选 ShellCheck、Python compile、`git diff --check` 和 `git diff --cached --check` | repo | 需要 `bash`、`python3`、`git`；有 `shellcheck` 时会额外运行；不需要 Docker 或网络 |
-| `bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh scripts/*.sh` | Shell 语法验证 | shell scripts | 默认可运行；不启动服务 |
+| `bash -n docker/entrypoint.sh docker/healthcheck.sh docker/mysql-backup.sh docker/nocodb.sh scripts/*.sh` | Shell 语法验证 | shell scripts | 默认可运行；不启动服务 |
 | `python3 -m py_compile docker/ops_service.py` | Python 语法验证 | `docker/ops_service.py` | 默认可运行；仅使用 Python 标准库 |
 | `git diff --check && git diff --cached --check` | 工作区和暂存区 whitespace 检查 | repo | 只读检查；需要 Git workspace |
 | `scripts/build.sh [image_tag]` | 构建 Docker 镜像，默认 `db-all-in-one-hfs:latest` | Docker image | 需要 Docker daemon；构建过程可能下载 apt/MySQL metadata，并拉取 pinned NocoDB OCI image |
@@ -68,7 +68,7 @@ cat docker/AGENTS.md
 - 保持 Hugging Face Docker Space 约束：单容器、repo root 是 Space root、Nginx 监听 `7860`、容器运行 UID `1000`、持久化数据在 `/data`。
 - `README.md` front matter 的 `app_port: 7860`、`hfs-dev.toml` 的 `public_port = 7860`、`docker/nginx.conf` 的 `listen 7860`、`Dockerfile` 的 `EXPOSE 7860` 必须一致。
 - `hfs-dev.toml` 当前声明 `pattern = "A"`、`runtime_mode = "artifact-at-build-time"`、`space_root_mode = "repo-root"`、`canonical_health_endpoint = "/healthz"`；修改这些字段时同步检查 README、Dockerfile、scripts 和 docs。
-- `/data` 是 runtime persistence 边界。MySQL 数据、Redis 数据、NocoDB 数据、日志、generated secrets 都应留在 `/data` 下；HF bucket volume 挂载在 `/data`，只能承载普通文件。runtime socket、pid、Nginx temp 和 wrapper public JS 必须留在容器本地 `/home/user/run`（FUSE volume 无法创建 unix socket），不要把这些运行时文件放回 `/data`。
+- `/data` 是 persistence 边界，只承载普通文件语义安全的持久数据：NocoDB 数据、`config/` 密钥快照、日志和 `backups/` 逻辑备份。HF bucket volume 是 FUSE 对象存储，不支持 unix socket，也不支持 InnoDB redo/RDB 依赖的 rename 语义（实测会触发 `log0write.cc` `ib::fatal`）。MySQL 数据（`/home/user/mysql`）、Redis 数据（`/home/user/redis`）、runtime socket/pid/Nginx temp/wrapper public JS（`/home/user/run`）必须留在容器本地。跨重启持久化靠 `mysql-backup` sidecar 定期向 `/data/backups` 写 `nocodb-*.sql.gz` 逻辑备份 + 每次启动自动恢复（最多丢失一个备份间隔）；不要在 `/data` 上直接放置 MySQL/Redis 数据目录，volume 写入只用新建/删除，不用 tmp+rename。
 - `DATA_DIR` 在配置文档中可见，但当前 Supervisor、Nginx、MySQL socket、healthcheck 和脚本都围绕 `/data` 写死；不要把它当成可自由切换的 runtime 开关。
 - entrypoint 生成的 secrets 属于 `/data/config/generated.env`；`/data/config/supervisor.env` 也是敏感诊断快照。不要提交真实 secret，不要把 generated secret 写入 README、docs、test fixture、日志样例、PR 文案或 public catalog。
 - MySQL 和 Redis 是容器内部依赖；不要把它们的端口暴露到 Hugging Face Space 公网入口。
@@ -126,7 +126,7 @@ scripts/static-check.sh
 等价拆分命令：
 
 ```bash
-bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh scripts/*.sh
+bash -n docker/entrypoint.sh docker/healthcheck.sh docker/mysql-backup.sh docker/nocodb.sh scripts/*.sh
 python3 -m py_compile docker/ops_service.py
 git diff --check
 git diff --cached --check
