@@ -113,12 +113,18 @@ RUN set -eux; \
 ENV HOME=/home/user
 
 # ─── Runtime directories ─────────────────────────────────────────────────────
+# /data holds persistent plain-file state (volume-safe). /home/user/run holds
+# ephemeral runtime state (unix sockets, pids, nginx temp) and must stay on
+# container-local disk because HF bucket volumes cannot host unix sockets.
 RUN mkdir -p \
       /data/mysql /data/nocodb /data/redis /data/config /data/logs \
-      /data/run/mysqld /data/run/nginx/client_body /data/run/nginx/proxy \
-      /data/run/nginx/fastcgi /data/run/nginx/uwsgi /data/run/nginx/scgi \
+      /home/user/run/mysqld /home/user/run/db-aio-public \
+      /home/user/run/nginx/client_body /home/user/run/nginx/proxy \
+      /home/user/run/nginx/fastcgi /home/user/run/nginx/uwsgi \
+      /home/user/run/nginx/scgi \
     && chown -R 1000:1000 /data \
     && chmod -R 755 /data \
+    && chown -R 1000:1000 /home/user/run \
     && rm -f /etc/nginx/sites-enabled/default
 
 # ─── Copy runtime configs and scripts ────────────────────────────────────────

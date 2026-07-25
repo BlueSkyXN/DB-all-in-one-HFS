@@ -89,7 +89,7 @@ MySQL 9.7 的 TempTable engine 没有独立的 NUMA 开关。HF Space 拒绝其 
 
 检查：
 - MySQL 是否运行（`/_ops/status`）
-- Socket 文件是否存在：`/data/run/mysqld/mysqld.sock`
+- Socket 文件是否存在：`/home/user/run/mysqld/mysqld.sock`
 - `/_ops/config` 中的 `MYSQL_DATABASE`、`MYSQL_USER`、`PORT`
 - `/_ops/config` 中的 `NOCODB_IMAGE_REF` 是否为预期的 tag + digest
 - `/data/config/supervisor.env` 中的 `NC_DB` 是否指向 `127.0.0.1:3306`
@@ -118,7 +118,7 @@ docker exec -it db-aio-hfs-demo bash
 
 # 检查 MySQL
 . /data/config/generated.env
-mysqladmin -u root -p"$_GEN_MYSQL_ROOT_PASSWORD" --socket=/data/run/mysqld/mysqld.sock status
+mysqladmin -u root -p"$_GEN_MYSQL_ROOT_PASSWORD" --socket=/home/user/run/mysqld/mysqld.sock status
 
 # 检查 Redis
 redis-cli -p 6379 ping
@@ -134,7 +134,7 @@ supervisorctl -c /etc/supervisor/conf.d/supervisord.conf status
 ```bash
 docker exec db-aio-hfs bash -lc '
   . /data/config/generated.env
-  mysqldump --socket=/data/run/mysqld/mysqld.sock \
+  mysqldump --socket=/home/user/run/mysqld/mysqld.sock \
     -u root -p"$_GEN_MYSQL_ROOT_PASSWORD" \
     --all-databases
 ' > backup.sql

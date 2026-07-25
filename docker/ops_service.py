@@ -15,6 +15,8 @@ from urllib.parse import parse_qs, quote, urlparse
 
 STARTED_AT = time.time()
 LOG_DIR = Path(os.environ.get("DATA_DIR", "/data")) / "logs"
+RUN_DIR = os.environ.get("RUN_DIR", "/home/user/run")
+MYSQL_SOCKET = f"{RUN_DIR}/mysqld/mysqld.sock"
 OPS_PORT = int(os.environ.get("OPS_PORT", "8081"))
 OPS_TOKEN = os.environ.get("OPS_TOKEN", "")
 SENSITIVE_ENV_KEYS = (
@@ -56,7 +58,7 @@ def check_mysql() -> dict[str, Any]:
     """Check MySQL connectivity."""
     try:
         result = subprocess.run(
-            ["mysqladmin", "ping", "--socket=/data/run/mysqld/mysqld.sock"],
+            ["mysqladmin", "ping", f"--socket={MYSQL_SOCKET}"],
             capture_output=True, text=True, timeout=5
         )
         return {"status": "ok" if result.returncode == 0 else "error", "output": result.stdout.strip()}
