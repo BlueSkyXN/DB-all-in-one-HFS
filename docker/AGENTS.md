@@ -1,13 +1,14 @@
 # docker/ navigation card
 
 `docker/` owns container runtime: entrypoint, Supervisor, Nginx, MySQL, Redis, ops-service, healthcheck, `/data`, and `/home/user/run`.
-Read before editing `entrypoint.sh`, `nocodb.sh`, `supervisord.conf`, `nginx.conf`, `ops_service.py`, `healthcheck.sh`, or `my.cnf`.
+Read before editing `entrypoint.sh`, `nocodb.sh`, `mysql-backup.sh`, `supervisord.conf`, `nginx.conf`, `ops_service.py`, `healthcheck.sh`, or `my.cnf`.
 This card is the runtime guardrail; root `AGENTS.md` has repo-wide rules.
 
 ## Invariants
 
 - Public entry: only Nginx `7860`; internal: NocoDB `8080`, ops-service `8081`, MySQL/Redis on `127.0.0.1`.
-- `DATA_DIR=/data` (persistent plain files only; HF bucket volume mount); MySQL socket `/home/user/run/mysqld/mysqld.sock` (container-local, FUSE volumes cannot host unix sockets).
+- `DATA_DIR=/data` holds persistent plain files only (NocoDB data, config, logs, `backups/` logical dumps); HF bucket volumes are FUSE object storage without unix-socket or rename semantics.
+- MySQL datadir `/home/user/mysql`, Redis dir `/home/user/redis`, MySQL socket `/home/user/run/mysqld/mysqld.sock` — all container-local. Cross-restart persistence = `mysql-backup.sh` dumps to `/data/backups/nocodb-*.sql.gz` (create/delete only, no tmp+rename) + entrypoint restore-on-boot. Never place InnoDB/RDB data on `/data`.
 - Never expose `/data/config/generated.env`, `/data/config/supervisor.env`, secrets, or runtime files under `/home/user/run`.
 - `/_ops` stays read-only; `/config` safe keys only; logs redacted; `ops_service.py` stdlib only.
 - Locale init: `NC_DEFAULT_LOCALE` -> exact `/__db_aio/nocodb-locale-init.js` -> `sub_filter`.
@@ -29,7 +30,7 @@ This card is the runtime guardrail; root `AGENTS.md` has repo-wide rules.
 
 ## Validation
 
-- `bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh`
+- `bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh docker/mysql-backup.sh`
 - `python3 -m py_compile docker/ops_service.py`
 - `scripts/static-check.sh`
 - Docker-only: `scripts/build.sh`, Nginx `-V` / `-t`, `scripts/run-demo.sh`, `scripts/smoke.sh http://localhost:7860`.

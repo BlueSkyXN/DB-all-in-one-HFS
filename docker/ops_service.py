@@ -32,6 +32,8 @@ SERVICE_LOGS = {
     "mysql.err": "mysql.err",
     "mysql.error": "mysql-error.log",
     "mysql.slow": "mysql-slow.log",
+    "mysql.backup": "mysql-backup.log",
+    "mysql.backup.err": "mysql-backup.err",
     "redis": "redis.log",
     "nocodb": "nocodb.log",
     "nocodb.err": "nocodb.err",

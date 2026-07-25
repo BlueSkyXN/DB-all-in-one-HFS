@@ -25,9 +25,15 @@ log() {
 : "${OPS_TOKEN:=}"
 : "${REDIS_PORT:=6379}"
 
-# Runtime sockets/pids/nginx temp files must stay on container-local disk.
-# HF Spaces bucket volumes mounted at /data are FUSE-backed and cannot host
-# unix sockets ("Bind on unix socket: Function not implemented").
+# Runtime state must stay on container-local disk. HF Spaces bucket volumes
+# mounted at /data are FUSE-backed object storage: they cannot host unix
+# sockets ("Bind on unix socket: Function not implemented") and cannot
+# execute the create/rename sequences InnoDB redo logs and Redis RDB writes
+# rely on (observed: "Failed to resize unused redo log file ...
+# (Failed to find the file)" -> "Error 1504" -> log0write.cc ib::fatal).
+# /data therefore holds persistent plain files only (app data, config, logs,
+# logical backups); MySQL/Redis live data stays container-local and MySQL is
+# restored from the latest logical backup on every boot.
 RUN_DIR="/home/user/run"
 
 BUILD_NOCODB_IMAGE_REF_FILE="/usr/local/share/db-aio-hfs/nocodb-image-ref"
@@ -38,8 +44,10 @@ fi
 
 export DATA_DIR RUN_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_IMAGE_REF
 
-MYSQL_DATA_DIR="${DATA_DIR}/mysql"
+MYSQL_DATA_DIR="${HOME}/mysql"
+REDIS_DATA_DIR="${HOME}/redis"
 NOCODB_DATA_DIR="${DATA_DIR}/nocodb"
+BACKUP_DIR="${DATA_DIR}/backups"
 MYSQL_ROOT_AUTH="unknown"
 
 write_shell_env() {
@@ -207,6 +215,29 @@ EOSQL
   log "Database '${MYSQL_DATABASE}' and user '${MYSQL_USER}' ready."
 }
 
+# ─── MySQL logical backup restore ────────────────────────────────────────────
+# Local datadir is ephemeral, so every boot restores the newest readable
+# logical backup from the /data volume. Candidates are tried newest first so
+# a partially uploaded dump never blocks startup.
+
+restore_latest_backup() {
+  local candidate restored=0
+  if [ -d "${BACKUP_DIR}" ]; then
+    while read -r candidate; do
+      log "Restoring MySQL backup: ${candidate}"
+      if gzip -dc "${candidate}" 2>/dev/null | run_mysql_root; then
+        restored=1
+        log "MySQL backup restored."
+        break
+      fi
+      log "WARN: backup ${candidate} is unreadable; trying an older backup."
+    done < <(find "${BACKUP_DIR}" -maxdepth 1 -name 'nocodb-*.sql.gz' -print | sort -r)
+  fi
+  if [ "${restored}" -eq 0 ]; then
+    log "No usable MySQL backup found; starting with an empty database."
+  fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Redis configuration
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -215,7 +246,7 @@ write_redis_conf() {
   cat > "${RUN_DIR}/redis.conf" <<EOF
 bind 127.0.0.1
 port ${REDIS_PORT}
-dir ${DATA_DIR}/redis
+dir ${REDIS_DATA_DIR}
 dbfilename dump.rdb
 save 900 1
 save 300 10
@@ -306,12 +337,12 @@ main() {
 
   validate_data_dir
 
-  # Ensure persistent directories exist (volume-safe plain files)
-  mkdir -p "${MYSQL_DATA_DIR}" "${NOCODB_DATA_DIR}" "${DATA_DIR}/redis" \
-           "${DATA_DIR}/config" "${DATA_DIR}/logs"
+  # Persistent plain files on /data (volume-safe: create/read/delete only)
+  mkdir -p "${NOCODB_DATA_DIR}" "${DATA_DIR}/config" "${DATA_DIR}/logs" "${BACKUP_DIR}"
 
-  # Ephemeral runtime files stay on container-local disk, not on /data volumes
-  mkdir -p "${RUN_DIR}/mysqld" "${RUN_DIR}/db-aio-public" \
+  # MySQL/Redis live data and ephemeral runtime files stay container-local
+  mkdir -p "${MYSQL_DATA_DIR}" "${REDIS_DATA_DIR}" \
+           "${RUN_DIR}/mysqld" "${RUN_DIR}/db-aio-public" \
            "${RUN_DIR}/nginx/client_body" "${RUN_DIR}/nginx/proxy" \
            "${RUN_DIR}/nginx/fastcgi" "${RUN_DIR}/nginx/uwsgi" \
            "${RUN_DIR}/nginx/scgi"
@@ -328,6 +359,8 @@ main() {
   log "  Default locale : ${NC_DEFAULT_LOCALE}"
   log "  OPS port       : ${OPS_PORT}"
   log "  Data dir       : ${DATA_DIR}"
+  log "  Run dir        : ${RUN_DIR}"
+  log "  Backup dir     : ${BACKUP_DIR}"
   log "=========================================="
 
   # Initialize MySQL (needs to run before supervisor starts it)
@@ -347,6 +380,7 @@ main() {
   wait_for_mysql
   detect_mysql_root_auth
   setup_mysql_users
+  restore_latest_backup
 
   # Stop bootstrap MySQL (supervisor will manage it)
   trap - EXIT
