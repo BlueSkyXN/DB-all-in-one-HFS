@@ -55,6 +55,15 @@ running=true
 trap 'running=false' TERM INT
 
 mkdir -p "${BACKUP_DIR}"
+
+# Object-storage volumes materialize directories only from the objects they
+# contain. Without a marker object, an empty backups/ prefix disappears from
+# the mount after the listing cache expires and the first dump fails with
+# ENOENT (observed on HF bucket mounts). Keep one small marker object.
+if [ ! -f "${BACKUP_DIR}/.keep" ]; then
+  printf 'db-aio-hfs backups directory marker\n' > "${BACKUP_DIR}/.keep"
+fi
+
 log "Starting backup loop: interval=${BACKUP_INTERVAL}s keep=${BACKUP_KEEP} dir=${BACKUP_DIR}"
 
 while [ "${running}" = true ]; do

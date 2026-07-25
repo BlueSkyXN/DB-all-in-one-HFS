@@ -210,6 +210,10 @@ setup_mysql_users() {
     ALTER USER '${MYSQL_USER}'@'127.0.0.1' IDENTIFIED BY ${mysql_password_sql};
     GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'localhost';
     GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'127.0.0.1';
+    # mysqldump on MySQL 9.7 issues FLUSH TABLES even with --single-transaction;
+    # the backup sidecar needs RELOAD for it.
+    GRANT RELOAD ON *.* TO '${MYSQL_USER}'@'localhost';
+    GRANT RELOAD ON *.* TO '${MYSQL_USER}'@'127.0.0.1';
     FLUSH PRIVILEGES;
 EOSQL
   log "Database '${MYSQL_DATABASE}' and user '${MYSQL_USER}' ready."
