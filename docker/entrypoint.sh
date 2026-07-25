@@ -25,13 +25,18 @@ log() {
 : "${OPS_TOKEN:=}"
 : "${REDIS_PORT:=6379}"
 
+# Runtime sockets/pids/nginx temp files must stay on container-local disk.
+# HF Spaces bucket volumes mounted at /data are FUSE-backed and cannot host
+# unix sockets ("Bind on unix socket: Function not implemented").
+RUN_DIR="/home/user/run"
+
 BUILD_NOCODB_IMAGE_REF_FILE="/usr/local/share/db-aio-hfs/nocodb-image-ref"
 if [ -r "${BUILD_NOCODB_IMAGE_REF_FILE}" ]; then
   NOCODB_IMAGE_REF="$(tr -d '\r\n' < "${BUILD_NOCODB_IMAGE_REF_FILE}")"
 fi
 : "${NOCODB_IMAGE_REF:=unknown}"
 
-export DATA_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_IMAGE_REF
+export DATA_DIR RUN_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_IMAGE_REF
 
 MYSQL_DATA_DIR="${DATA_DIR}/mysql"
 NOCODB_DATA_DIR="${DATA_DIR}/nocodb"
@@ -127,14 +132,14 @@ init_mysql() {
       return 1
     fi
   fi
-  chmod -R u+rwX "${MYSQL_DATA_DIR}" "${DATA_DIR}/run/mysqld" 2>/dev/null || true
+  chmod -R u+rwX "${MYSQL_DATA_DIR}" "${RUN_DIR}/mysqld" 2>/dev/null || true
 }
 
 wait_for_mysql() {
   log "Waiting for MySQL to be ready..."
   local _
   for _ in $(seq 1 60); do
-    if mysqladmin ping --socket=/data/run/mysqld/mysqld.sock --silent 2>/dev/null; then
+    if mysqladmin ping --socket="${RUN_DIR}/mysqld/mysqld.sock" --silent 2>/dev/null; then
       log "MySQL is ready."
       return 0
     fi
@@ -147,13 +152,13 @@ wait_for_mysql() {
 }
 
 detect_mysql_root_auth() {
-  if mysql --socket=/data/run/mysqld/mysqld.sock -u root -p"${MYSQL_ROOT_PASSWORD}" \
+  if mysql --socket="${RUN_DIR}/mysqld/mysqld.sock" -u root -p"${MYSQL_ROOT_PASSWORD}" \
       --connect-expired-password -e "SELECT 1" >/dev/null 2>&1; then
     MYSQL_ROOT_AUTH="password"
     return 0
   fi
 
-  if mysql --socket=/data/run/mysqld/mysqld.sock -u root \
+  if mysql --socket="${RUN_DIR}/mysqld/mysqld.sock" -u root \
       --connect-expired-password -e "SELECT 1" >/dev/null 2>&1; then
     MYSQL_ROOT_AUTH="none"
     return 0
@@ -166,10 +171,10 @@ detect_mysql_root_auth() {
 run_mysql_root() {
   case "${MYSQL_ROOT_AUTH}" in
     password)
-      mysql --socket=/data/run/mysqld/mysqld.sock -u root -p"${MYSQL_ROOT_PASSWORD}"
+      mysql --socket="${RUN_DIR}/mysqld/mysqld.sock" -u root -p"${MYSQL_ROOT_PASSWORD}"
       ;;
     none)
-      mysql --socket=/data/run/mysqld/mysqld.sock -u root
+      mysql --socket="${RUN_DIR}/mysqld/mysqld.sock" -u root
       ;;
     *)
       log "ERROR: MySQL root auth mode was not detected."
@@ -207,7 +212,7 @@ EOSQL
 # ═══════════════════════════════════════════════════════════════════════════════
 
 write_redis_conf() {
-  cat > "${DATA_DIR}/run/redis.conf" <<EOF
+  cat > "${RUN_DIR}/redis.conf" <<EOF
 bind 127.0.0.1
 port ${REDIS_PORT}
 dir ${DATA_DIR}/redis
@@ -258,9 +263,9 @@ export_nocodb_env() {
 }
 
 write_nocodb_locale_init_js() {
-  mkdir -p "${DATA_DIR}/run/db-aio-public"
+  mkdir -p "${RUN_DIR}/db-aio-public"
 
-  cat > "${DATA_DIR}/run/db-aio-public/nocodb-locale-init.js" <<EOF
+  cat > "${RUN_DIR}/db-aio-public/nocodb-locale-init.js" <<EOF
 (function () {
   try {
     var storageKey = 'nocodb-gui-v2';
@@ -301,12 +306,15 @@ main() {
 
   validate_data_dir
 
-  # Ensure directories exist
+  # Ensure persistent directories exist (volume-safe plain files)
   mkdir -p "${MYSQL_DATA_DIR}" "${NOCODB_DATA_DIR}" "${DATA_DIR}/redis" \
-           "${DATA_DIR}/config" "${DATA_DIR}/logs" "${DATA_DIR}/run/mysqld" \
-           "${DATA_DIR}/run/nginx/client_body" "${DATA_DIR}/run/nginx/proxy" \
-           "${DATA_DIR}/run/nginx/fastcgi" "${DATA_DIR}/run/nginx/uwsgi" \
-           "${DATA_DIR}/run/nginx/scgi"
+           "${DATA_DIR}/config" "${DATA_DIR}/logs"
+
+  # Ephemeral runtime files stay on container-local disk, not on /data volumes
+  mkdir -p "${RUN_DIR}/mysqld" "${RUN_DIR}/db-aio-public" \
+           "${RUN_DIR}/nginx/client_body" "${RUN_DIR}/nginx/proxy" \
+           "${RUN_DIR}/nginx/fastcgi" "${RUN_DIR}/nginx/uwsgi" \
+           "${RUN_DIR}/nginx/scgi"
 
   generate_secrets
   validate_fixed_port "PORT" "${PORT}" "8080"
@@ -328,8 +336,8 @@ main() {
   # Start MySQL temporarily to bootstrap users
   log "Starting MySQL for bootstrap..."
   mysqld --datadir="${MYSQL_DATA_DIR}" \
-         --socket=/data/run/mysqld/mysqld.sock \
-         --pid-file=/data/run/mysqld/mysqld.pid \
+         --socket="${RUN_DIR}/mysqld/mysqld.sock" \
+         --pid-file="${RUN_DIR}/mysqld/mysqld.pid" \
          --port=3306 --bind-address=127.0.0.1 --skip-name-resolve \
          --mysqlx=0 \
          --log-error="${DATA_DIR}/logs/mysql-error.log" &
@@ -370,6 +378,7 @@ main() {
     write_shell_env "OPS_TOKEN" "${OPS_TOKEN}"
     write_shell_env "OPS_PORT" "${OPS_PORT}"
     write_shell_env "DATA_DIR" "${DATA_DIR}"
+    write_shell_env "RUN_DIR" "${RUN_DIR}"
     write_shell_env "NC_DEFAULT_LOCALE" "${NC_DEFAULT_LOCALE}"
     write_shell_env "NOCODB_IMAGE_REF" "${NOCODB_IMAGE_REF}"
     [ -n "${NC_SITE_URL}" ] && write_shell_env "NC_SITE_URL" "${NC_SITE_URL}"

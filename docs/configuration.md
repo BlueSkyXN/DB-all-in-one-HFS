@@ -60,7 +60,7 @@ NC_REDIS_URL=redis://127.0.0.1:6379
 |------|--------|------|
 | `REDIS_PORT` | `6379` | Redis 内部监听端口 |
 
-`REDIS_PORT` 会写入 `/data/run/redis.conf`，同时用于 NocoDB 的 Redis URL 和 ops-service 的 Redis health check。Nginx 不代理 Redis。
+`REDIS_PORT` 会写入 `/home/user/run/redis.conf`，同时用于 NocoDB 的 Redis URL 和 ops-service 的 Redis health check。Nginx 不代理 Redis。
 
 ### Build Args
 

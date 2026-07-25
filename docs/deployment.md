@@ -118,7 +118,7 @@ MySQL 数据存储在 `/data/mysql`。备份建议：
 ```bash
 docker exec db-aio-hfs bash -lc '
   . /data/config/generated.env
-  mysqldump --socket=/data/run/mysqld/mysqld.sock \
+  mysqldump --socket=/home/user/run/mysqld/mysqld.sock \
     -u root -p"$_GEN_MYSQL_ROOT_PASSWORD" \
     --all-databases
 ' > backup.sql

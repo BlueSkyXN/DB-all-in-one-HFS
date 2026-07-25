@@ -44,9 +44,9 @@ MySQL 9.7 通过 `docker/my.cnf` 启用 `container_aware`，按容器 cgroup 限
    - 初始化 MySQL 数据目录（首次运行）
    - 临时启动 MySQL 创建数据库和用户
    - 停止临时 MySQL
-   - 写入 `/data/run/redis.conf`
+   - 写入 `/home/user/run/redis.conf`
    - 导出 NocoDB、Redis、MySQL、ops-service 所需环境变量
-   - 写入 `/data/run/db-aio-public/nocodb-locale-init.js`，用于初始化 NocoDB UI 默认语言
+   - 写入 `/home/user/run/db-aio-public/nocodb-locale-init.js`，用于初始化 NocoDB UI 默认语言
    - 写入 `/data/config/supervisor.env` 作为诊断用快照
    - 启动 supervisord
 3. `supervisord` 按优先级启动：

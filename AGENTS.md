@@ -68,16 +68,16 @@ cat docker/AGENTS.md
 - 保持 Hugging Face Docker Space 约束：单容器、repo root 是 Space root、Nginx 监听 `7860`、容器运行 UID `1000`、持久化数据在 `/data`。
 - `README.md` front matter 的 `app_port: 7860`、`hfs-dev.toml` 的 `public_port = 7860`、`docker/nginx.conf` 的 `listen 7860`、`Dockerfile` 的 `EXPOSE 7860` 必须一致。
 - `hfs-dev.toml` 当前声明 `pattern = "A"`、`runtime_mode = "artifact-at-build-time"`、`space_root_mode = "repo-root"`、`canonical_health_endpoint = "/healthz"`；修改这些字段时同步检查 README、Dockerfile、scripts 和 docs。
-- `/data` 是 runtime persistence 边界。MySQL 数据、Redis 数据、NocoDB 数据、日志、runtime socket、generated secrets 和 wrapper public JS 都应留在 `/data` 下。
+- `/data` 是 runtime persistence 边界。MySQL 数据、Redis 数据、NocoDB 数据、日志、generated secrets 都应留在 `/data` 下；HF bucket volume 挂载在 `/data`，只能承载普通文件。runtime socket、pid、Nginx temp 和 wrapper public JS 必须留在容器本地 `/home/user/run`（FUSE volume 无法创建 unix socket），不要把这些运行时文件放回 `/data`。
 - `DATA_DIR` 在配置文档中可见，但当前 Supervisor、Nginx、MySQL socket、healthcheck 和脚本都围绕 `/data` 写死；不要把它当成可自由切换的 runtime 开关。
 - entrypoint 生成的 secrets 属于 `/data/config/generated.env`；`/data/config/supervisor.env` 也是敏感诊断快照。不要提交真实 secret，不要把 generated secret 写入 README、docs、test fixture、日志样例、PR 文案或 public catalog。
 - MySQL 和 Redis 是容器内部依赖；不要把它们的端口暴露到 Hugging Face Space 公网入口。
 - MySQL 仅绑定 `127.0.0.1`，NocoDB 通过 `mysql2://127.0.0.1:3306` 使用；不要把本仓库改成公网 MySQL 服务。
-- 外部唯一公开入口是 Nginx `7860`；NocoDB 内部端口是 `8080`，`ops-service` 内部端口是 `8081`，Redis 是 `6379`，MySQL socket 是 `/data/run/mysqld/mysqld.sock`。
+- 外部唯一公开入口是 Nginx `7860`；NocoDB 内部端口是 `8080`，`ops-service` 内部端口是 `8081`，Redis 是 `6379`，MySQL socket 是 `/home/user/run/mysqld/mysqld.sock`。
 - `ops-service` 是只读诊断面。`/_ops` 下只能提供健康、状态、日志、脱敏配置等只读能力。
 - `ops-service` 的 `/config` 输出必须只包含 safe keys，不能返回 password、token、JWT secret、generated secret、完整环境变量 dump 或未脱敏日志。
 - `NC_DEFAULT_LOCALE` 是本 demo wrapper 层的 NocoDB UI 默认语言初始化变量，不是 NocoDB 官方 locale 环境变量；它通过 Nginx 注入 JS 写入浏览器 `localStorage`。
-- Nginx 公开 wrapper 静态初始化文件时只能使用 exact path，例如 `/__db_aio/nocodb-locale-init.js`；公开文件放在 `/data/run/db-aio-public`，不要从 `/data/config` 服务任何静态文件。
+- Nginx 公开 wrapper 静态初始化文件时只能使用 exact path，例如 `/__db_aio/nocodb-locale-init.js`；公开文件放在 `/home/user/run/db-aio-public`，不要从 `/data/config` 服务任何静态文件。
 - Nginx 对 `/signup` 和 `/signup/` 只做 exact 兼容重定向到 `/signin/`；不要通配重写 `/signup/<token>`，避免破坏潜在 token/invitation 路径。
 - Nginx HTML 注入依赖 `ngx_http_sub_module` 和 `Accept-Encoding ""`；修改 `sub_filter` 或 `location /` 时同步验证镜像内 `nginx -V` 和 `nginx -t`。
 - Shell 脚本保持 `#!/usr/bin/env bash` 与 `set -euo pipefail`。
