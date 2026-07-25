@@ -217,6 +217,10 @@ setup_mysql_users() {
     FLUSH PRIVILEGES;
 EOSQL
   log "Database '${MYSQL_DATABASE}' and user '${MYSQL_USER}' ready."
+  # detect_mysql_root_auth runs before the ALTER above, so on a freshly
+  # initialized datadir it reports "none". After the ALTER, root requires
+  # the password; update the mode so restore_latest_backup authenticates.
+  MYSQL_ROOT_AUTH="password"
 }
 
 # ─── MySQL logical backup restore ────────────────────────────────────────────
