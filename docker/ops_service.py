@@ -165,6 +165,30 @@ def get_logs(service: str, lines: int = 100) -> str:
         return f"Error reading log: {e}"
 
 
+def get_provenance() -> dict[str, Any]:
+    """Return the verified runtime identity without exposing download URLs."""
+    provenance_path = Path(RUN_DIR) / "nocodb-runtime" / "provenance.json"
+    try:
+        raw = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return {"status": "unavailable", "error": str(exc)}
+    if not isinstance(raw, dict):
+        return {"status": "unavailable", "error": "provenance is not an object"}
+    artifact = raw.get("artifact")
+    if not isinstance(artifact, dict):
+        return {"status": "unavailable", "error": "provenance artifact is invalid"}
+    return {
+        "status": "ok",
+        "project": raw.get("project", ""),
+        "slot": raw.get("slot", ""),
+        "source_ref": raw.get("source_ref", ""),
+        "wrapper_source_ref": raw.get("wrapper_source_ref", ""),
+        "artifact_name": artifact.get("name", ""),
+        "artifact_sha256": artifact.get("sha256", ""),
+        "generated_at": raw.get("generated_at", ""),
+    }
+
+
 class OpsHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # Suppress default logging
@@ -222,11 +246,14 @@ class OpsHandler(BaseHTTPRequestHandler):
                 "MYSQL_DATABASE", "MYSQL_USER", "PORT", "NC_DISABLE_TELE",
                 "OPS_PORT", "REDIS_PORT", "DATA_DIR", "MYSQL_VERSION",
                 "MYSQL_SERVER_PACKAGE", "MYSQL_CLIENT_PACKAGE",
-                "UBUNTU_VERSION", "NOCODB_IMAGE_REF", "NC_SITE_URL",
-                "NC_DEFAULT_LOCALE",
+                "UBUNTU_VERSION", "NOCODB_SOURCE_REF", "NOCODB_ARTIFACT_SLOT",
+                "NC_SITE_URL", "NC_DEFAULT_LOCALE",
             ]
             config = {k: os.environ.get(k, "") for k in safe_keys}
             self.send_json(config)
+        elif path == "/provenance":
+            provenance = get_provenance()
+            self.send_json(provenance, 200 if provenance["status"] == "ok" else 503)
         else:
             self.send_json({"error": "not found"}, 404)
 

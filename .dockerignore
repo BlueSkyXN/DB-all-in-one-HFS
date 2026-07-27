@@ -1,10 +1,28 @@
 .git
 .gitignore
+.gitattributes
 .DS_Store
 README.md
 docs/
-local/
 *.md
+
+# Never transfer deployment ledgers, local controls, credentials, generated
+# data, caches, backups, or artifact downloads into the Docker build context.
+.env
+.env.*
+config.toml
+local/
+**/local/
+data/
+backups/
+.cache/
+**/.cache/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.sql
+*.sql.gz
+*.tar.gz
 *.secret
 *.key
 *.pem

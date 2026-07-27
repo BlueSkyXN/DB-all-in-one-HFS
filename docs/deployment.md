@@ -1,143 +1,63 @@
 # 部署指南
 
-## Hugging Face Space 部署
+本指南只定义 HFS v2 artifact 交付合同，不授权对现有 Space、bucket、Settings、挂载、数据库或备份执行写操作。该 demo 不适合生产数据。
 
-### 前提
+## 交付前 owner gates
 
-- Hugging Face 账号
-- 新建 Space，SDK 选择 **Docker**
-- 建议启用 Persistent Storage，用于保存 `/data`
+在任何远端发布前，release owner 与 data owner 必须重新只读确认：
 
-### 步骤
+1. GitHub main/候选 tag 的完整 SHA、当前 Space wrapper ref 和预 artifact 回退锚点；不要把历史盘点当成当前事实。
+2. Space 的实际 `/data` mount、可写性、现有数据库恢复点及 RPO/RTO。
+3. `hfs-dist` 下载权限与无凭据 HTTPS manifest URL；下载面不能和 `/data` 挂载面混用。
+4. 候选 Space/隔离 data target、NocoDB UI/API、MySQL/Redis/Nginx health、受控 restart、逻辑备份和隔离 restore 的验收窗口。
 
-1. 推送本仓库文件到 Space 仓库根目录：
+未经独立批准，不得 reset `/data`、恢复真实数据库、删除旧 archive/backup、prune Settings、替换 mount、restart/factory reboot 或清理 Space/bucket。
 
-```bash
-git remote add hf https://huggingface.co/spaces/<username>/<space-name>
-git push hf main
-```
+## 发布 artifact
 
-2. Space 会根据 `README.md` 顶部 YAML 识别：
+`.github/workflows/publish-nocodb-artifact.yml` 只接受手动 `workflow_dispatch`。操作者必须输入 `PUBLISH_NOCODB_ARTIFACT`，并显式选择 `edge` 或 `release`：
 
-```yaml
-sdk: docker
-app_port: 7860
-```
+1. workflow 读取 Dockerfile 中审计过的 `NOCODB_SOURCE_REF`（tag + digest），从该不可变 OCI ref 导出 rootfs archive。
+2. archive 名包含上游 tag 和完整 wrapper commit；`release` 还要求现有 Git tag 与当前 commit 相同，并将同一字节 archive 上传到对应 GitHub Release。
+3. artifact 写入 `hfs-dist/db-all-in-one-hfs/<slot>/` 后立即读回并校验 SHA-256。
+4. 仅在 artifact readback 成功后写 `manifest.json`，随后读回逐字节比对。这是 manifest-last；失败不会扫描或回退。
 
-3. 在 Space Settings 中建议：
-   - Hardware: CPU Basic 或 CPU Upgrade
-   - Storage: Persistent Storage（保留 MySQL、Redis、NocoDB 文件和生成 secret）
+workflow 需要预先由 owner 配置的 `HF_TOKEN` Secret、`HFS_BUCKET_NAMESPACE` 与 `HFS_DIST_BASE_URL` Variables。它们不在 Git、`hfs-dev.toml` 或 `.env.example` 中保存值。workflow 未安装依赖；缺少 runner 上的 `hf`/`gh` CLI 时会失败关闭。
 
-4. 在 Space Settings -> Variables 设置（可选）：
-   - `NC_SITE_URL`（Space 公网 URL）
-   - `NC_DEFAULT_LOCALE`（NocoDB UI 默认语言，默认 `zh-Hans`；支持 `en`、`zh-Hans`、`zh-Hant`）
+`edge` 只表示当前批准的 main 构建；`release` 指向批准的 GitHub Release。回退必须从 GitHub Release 的精确 archive 重新完成 artifact-readback/manifest-last，而不是复用旧目录扫描、直接 OCI COPY 或重置数据库。
 
-5. 在 Space Settings -> Secrets 设置（可选，不设则自动生成）：
-   - `MYSQL_ROOT_PASSWORD`
-   - `MYSQL_PASSWORD`
-   - `NC_AUTH_JWT_SECRET`
-   - `OPS_TOKEN`（推荐设置，便于远程诊断）
+## 部署 wrapper
 
-如果没有设置这些 secret，入口脚本会在首次启动时生成并写入 `/data/config/generated.env`。这适合临时 demo，但远程调用 `/_ops/` 时不方便读取自动生成的 `OPS_TOKEN`，因此建议显式设置。
+`.github/workflows/deploy-hf-space.yml` 同样只能手动运行，并要求输入 `DEPLOY_DB_AIO_HFS`。它：
 
-### 查看运行状态
+1. 拒绝未提交工作区，导出只含 Dockerfile、Space card、manifest、`.dockerignore`、`docker/` runtime contract 和生成的 `BUILD_SOURCE.json` 的 wrapper bundle。
+2. 使用 HF CLI 上传该 bundle，不使用 credential-bearing Git URL、`git push`、force-push 或 whole-repository delete。
+3. 下载并逐字节核对 `BUILD_SOURCE.json`、Dockerfile、manifest、ignore 规则和关键 bootstrap 文件；缺完整 40 位 wrapper SHA 即失败。
 
-```bash
-# 健康检查（无需鉴权）
-curl https://your-space.hf.space/healthz
+上传完成不代表 Space 已就绪。保持现有实例和数据不变，等待 owner 在批准的窗口中读取 Space revision/runtime provenance、`/healthz`、认证后的 `/_ops/provenance` 和业务 smoke。不要让 workflow 自动 restart 或恢复数据。
 
-# Ops 诊断（需 OPS_TOKEN）
-curl -H "X-Ops-Token: $OPS_TOKEN" https://your-space.hf.space/_ops/status
-```
+## Space Settings
 
-`/healthz` 会检查 MySQL、Redis 和 NocoDB。Nginx 自身健康检查为 `/nginx-health`。
+先按 [配置参考](./configuration.md) 仅设置登记键名：
 
-## 本地 Docker 部署
+- Variables：`NC_SITE_URL`、`NC_DEFAULT_LOCALE`、`NOCODB_ARTIFACT_MANIFEST_URL`、`NOCODB_ARTIFACT_SLOT`。
+- Secrets：`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
+
+发布后 Space 启动必须由 manifest 驱动。缺少 `NOCODB_ARTIFACT_MANIFEST_URL`、slot 不匹配、下载失败、SHA/size/source ref/wrapper SHA/rootfs layout 任一不匹配都会退出，且发生在 MySQL 初始化和 `/data` 写入之前。
+
+## 本地验证
 
 ```bash
-# 构建默认镜像 db-all-in-one-hfs:latest
+scripts/static-check.sh
 scripts/build.sh
-
-# 运行（交互模式，使用 named volume db-hfs-persist）
+NOCODB_ARTIFACT_MANIFEST_URL='https://<approved-dist-host>/db-all-in-one-hfs/release/manifest.json' \
+NOCODB_ARTIFACT_SLOT='release' \
 scripts/run-demo.sh
-
-# 后台运行
-# 先在当前 shell 中设置 OPS_TOKEN，再启动
-docker run -d --name db-aio-hfs \
-  -p 7860:7860 \
-  -v db-hfs-data:/data \
-  -e OPS_TOKEN="$OPS_TOKEN" \
-  db-all-in-one-hfs:latest
-
-# Smoke 测试
 scripts/smoke.sh http://localhost:7860
 ```
 
-`scripts/smoke.sh` 主要用于检查公开端点。需要验证 ops 鉴权端点时，使用下面的 `curl -H "X-Ops-Token: ..."` 命令单独检查。
+Docker build、`run-demo` 和 smoke 可能下载网络资源、启动容器、替换同名容器或接触 named volume；只应在隔离环境中执行。`run-demo` 会在 manifest URL 格式或 slot 无效时于删除现有 demo container 前停止，但不会预先访问远端验证一个格式正确的 manifest；已有 `/data` volume 不会被脚本删除。
 
-`scripts/build.sh` 和 `scripts/run-demo.sh` 都支持把镜像 tag 作为第一个参数：
+## 备份和恢复边界
 
-```bash
-scripts/build.sh db-all-in-one-hfs:test
-scripts/run-demo.sh db-all-in-one-hfs:test
-```
-
-Space build 无法依赖运行时变量补齐 Docker build pin，因此提交到 Space 的 Dockerfile 默认值本身必须是不可变候选。更新版本时使用完整的 tag/version + digest：
-
-```bash
-UBUNTU_VERSION='24.04@sha256:<digest>' \
-MYSQL_SERVER_PACKAGE='mysql-server=<version>' \
-MYSQL_CLIENT_PACKAGE='mysql-client=<version>' \
-NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' \
-scripts/build.sh db-all-in-one-hfs:<tag>
-```
-
-NocoDB `2026.06.1` 之后不再发布 standalone executable；部署构建从 pinned 官方 OCI image 复制 NocoDB runtime，不再访问 `Noco-linux-*` release asset。
-
-## 读取本地自动生成的 OPS_TOKEN
-
-如果使用 `scripts/run-demo.sh`，持久化卷名是 `db-hfs-persist`。可用同一镜像读取生成的 token：
-
-```bash
-docker run --rm --entrypoint bash \
-  -v db-hfs-persist:/data \
-  db-all-in-one-hfs:latest \
-  -lc 'grep "^_GEN_OPS_TOKEN=" /data/config/generated.env'
-```
-
-拿到 token 后：
-
-```bash
-curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/status
-```
-
-## 数据备份与恢复边界
-
-MySQL 运行数据位于容器本地 `/home/user/mysql`——对象存储 volume（如 HF bucket）是 FUSE 挂载，无法承载 InnoDB redo log 依赖的 rename 语义（实测会触发 `log0write.cc` `ib::fatal` 崩溃）。跨重启/重建的持久化通过逻辑备份完成：
-
-- `mysql-backup` sidecar 每 `MYSQL_BACKUP_INTERVAL` 秒（默认 300）把 `MYSQL_DATABASE` 逻辑备份到 `/data/backups/nocodb-<timestamp>.sql.gz`，保留最新 `MYSQL_BACKUP_KEEP` 份（默认 6），优雅停机时再写一份
-- 备份文件只新建/删除，不做 tmp+rename，适配对象存储语义；每份写入后做 `gzip -t` 完整性检查
-- 每次启动时 entrypoint 在容器本地重新初始化 MySQL，并从新到旧依次尝试恢复 `/data/backups/` 中的备份，自动跳过损坏或上传不完整的文件
-- 跨重启/重建最多丢失一个备份间隔的数据；未挂载 volume 时备份随容器一起丢失
-
-手动备份（容器运行时）：
-
-```bash
-docker exec db-aio-hfs bash -lc '
-  . /data/config/generated.env
-  mysqldump --socket=/home/user/run/mysqld/mysqld.sock \
-    -u root -p"$_GEN_MYSQL_ROOT_PASSWORD" \
-    --databases nocodb
-' > backup.sql
-```
-
-如果容器名来自 `scripts/run-demo.sh`，应使用 `db-aio-hfs-demo`。
-
-长期归档、跨地域容灾和生产级备份策略不在本 demo 内自动处理。生产数据请使用独立 MySQL 服务和正式备份方案。
-
-## 注意事项
-
-- 本方案为 Demo/PoC 用途，不建议承载生产数据
-- HF Spaces 免费层可能有资源限制和冷启动
-- 密钥在首次启动时自动生成并持久化，挂载卷不丢失
-- 改动 `MYSQL_VERSION`、MySQL package pin 或 `NOCODB_IMAGE_REF` 属于版本升级，需重新构建并单独验证兼容性
+MySQL backup sidecar 每 `MYSQL_BACKUP_INTERVAL` 秒在 `/data/backups` 创建 `nocodb-*.sql.gz`，每份执行 `gzip -t`，保留 `MYSQL_BACKUP_KEEP` 份；启动从新到旧尝试恢复。这个逻辑恢复链不替代生产备份、异地归档或 PITR。验证恢复只可在隔离目标上进行，并由 data owner 明确批准。

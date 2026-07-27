@@ -1,0 +1,60 @@
+name: deploy-hf-space-wrapper
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type DEPLOY_DB_AIO_HFS to authorize this wrapper upload"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: inputs.confirmation == 'DEPLOY_DB_AIO_HFS'
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_ID: BlueSkyXN/db-all-in-one
+    steps:
+      - name: Checkout reviewed GitHub source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Export the allowlisted Pattern A wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v hf >/dev/null || { echo 'HF CLI is required on the runner.' >&2; exit 1; }
+          test -n "${HF_TOKEN}" || { echo 'HF_TOKEN Secret is required.' >&2; exit 1; }
+          scripts/export-space-bundle.sh "${RUNNER_TEMP}/space-bundle"
+
+      - name: Upload wrapper without force-push or deletion
+        shell: bash
+        run: |
+          set -euo pipefail
+          hf upload "${HF_SPACE_ID}" "${RUNNER_TEMP}/space-bundle" . --repo-type space
+
+      - name: Read back immutable wrapper provenance and required files
+        shell: bash
+        run: |
+          set -euo pipefail
+          readback="${RUNNER_TEMP}/space-readback"
+          mkdir -p "${readback}"
+          for file in BUILD_SOURCE.json Dockerfile hfs-dev.toml .dockerignore docker/entrypoint.sh docker/nocodb_bootstrap.py; do
+            hf download "${HF_SPACE_ID}" "${file}" --repo-type space --local-dir "${readback}"
+            cmp "${RUNNER_TEMP}/space-bundle/${file}" "${readback}/${file}"
+          done
+          READBACK="${readback}" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          source = json.loads(Path(os.environ["READBACK"], "BUILD_SOURCE.json").read_text())
+          ref = source.get("wrapper_source_ref", "")
+          if len(ref) != 40 or any(c not in "0123456789abcdef" for c in ref):
+              raise SystemExit("Space BUILD_SOURCE.json lacks a full immutable wrapper SHA")
+          print(f"Space wrapper readback verified: {ref}")
+          PY

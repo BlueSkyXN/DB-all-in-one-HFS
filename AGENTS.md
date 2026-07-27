@@ -22,7 +22,7 @@
 | --- | --- | ---: | --- |
 | `README.md` | Hugging Face Space card、项目介绍、本地运行和部署入口 | No | 修改项目定位、HF metadata、`sdk: docker`、`app_port`、端口说明或公开文档入口时 |
 | `Dockerfile` | Docker Space 镜像构建入口；安装 MySQL、NocoDB、Redis、Nginx、Supervisor、Python runtime | No | 修改基础镜像、MySQL/NocoDB 版本、APT 包、复制路径、运行用户、端口、healthcheck 或 build args 时 |
-| `hfs-dev.toml` | HFS 范式 manifest；声明 Pattern A、artifact-at-build-time、repo-root Space、required files 和 release pin surface | No | 修改 HFS 分类、runtime 获取模式、Space root 模式、required files、health endpoint、public port 或 release pin 规则时 |
+| `hfs-dev.toml` | 最小 HFS v2 semantic registry；登记 Pattern A port/artifact lane、Space、Settings 键名和 dist 关系 | No | 修改 HFS 分类、artifact lane、Space、Settings 键名、下载面或 local-only 控制面时 |
 | `.github/` | GitHub Actions；当前只有 `static-check` workflow | No | 修改 CI 触发条件、permissions、checkout 或验证命令时 |
 | `.dockerignore` | Docker build context 过滤 | No | 修改 build context、排除规则或避免把本地文件、文档、secret 打进镜像时 |
 | `.gitattributes` / `.gitignore` | Git 归一化和忽略规则 | No | 修改换行策略、忽略生成物、local runtime 文件或 secret 文件规则时 |
@@ -55,7 +55,7 @@ cat docker/AGENTS.md
 | `python3 -m py_compile docker/ops_service.py` | Python 语法验证 | `docker/ops_service.py` | 默认可运行；仅使用 Python 标准库 |
 | `git diff --check && git diff --cached --check` | 工作区和暂存区 whitespace 检查 | repo | 只读检查；需要 Git workspace |
 | `scripts/build.sh [image_tag]` | 构建 Docker 镜像，默认 `db-all-in-one-hfs:latest` | Docker image | 需要 Docker daemon；构建过程可能下载 apt/MySQL metadata，并拉取 pinned NocoDB OCI image |
-| `NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' scripts/build.sh db-all-in-one-hfs:<tag>` | 构建指定 NocoDB OCI 候选镜像 | Docker image | 需要 Docker daemon 和网络；image ref 必须保留 release tag + digest |
+| `NOCODB_SOURCE_REF='nocodb/nocodb:<tag>@sha256:<digest>' scripts/build.sh db-all-in-one-hfs:<tag>` | 构建指定 NocoDB source pin 的 wrapper 镜像 | Docker image | 需要 Docker daemon 和网络；source ref 必须保留 release tag + digest，runtime archive 另行发布 |
 | `docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -V 2>&1 \| grep http_sub_module` | 验证镜像 Nginx 包含 `ngx_http_sub_module` | built image | 需要 Docker daemon 和已构建镜像 |
 | `docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -t -c /etc/nginx/nginx.conf` | 验证镜像内 Nginx config | built image | 需要 Docker daemon 和已构建镜像 |
 | `scripts/run-demo.sh [image_tag]` | 本地启动 demo 容器，默认 image tag `db-all-in-one-hfs:latest` | local runtime | 需要 Docker daemon 和可用端口 `7860`；会删除同名运行容器 `db-aio-hfs-demo`，并复用 named volume `db-hfs-persist` |
@@ -67,7 +67,7 @@ cat docker/AGENTS.md
 - 始终把本仓库定位为 demo/all-in-one deployment bundle，不要暗示生产级 HA、备份、审计、权限隔离或完整安全基线已经具备。
 - 保持 Hugging Face Docker Space 约束：单容器、repo root 是 Space root、Nginx 监听 `7860`、容器运行 UID `1000`、持久化数据在 `/data`。
 - `README.md` front matter 的 `app_port: 7860`、`hfs-dev.toml` 的 `public_port = 7860`、`docker/nginx.conf` 的 `listen 7860`、`Dockerfile` 的 `EXPOSE 7860` 必须一致。
-- `hfs-dev.toml` 当前声明 `pattern = "A"`、`runtime_mode = "artifact-at-build-time"`、`space_root_mode = "repo-root"`、`canonical_health_endpoint = "/healthz"`；修改这些字段时同步检查 README、Dockerfile、scripts 和 docs。
+- `hfs-dev.toml` 当前声明 HFS v2 `port` + `artifact` 车道、Space、Settings 键名和 `hfs-dist` 下载面；产品 pin、checksum、bootstrap 与 persistence 不变量在 Dockerfile、runtime 脚本和 artifact contract check 中维护，修改时同步检查 README、Dockerfile、scripts 和 docs。
 - `/data` 是 persistence 边界，只承载普通文件语义安全的持久数据：NocoDB 数据、`config/` 密钥快照、日志和 `backups/` 逻辑备份。HF bucket volume 是 FUSE 对象存储，不支持 unix socket，也不支持 InnoDB redo/RDB 依赖的 rename 语义（实测会触发 `log0write.cc` `ib::fatal`）。MySQL 数据（`/home/user/mysql`）、Redis 数据（`/home/user/redis`）、runtime socket/pid/Nginx temp/wrapper public JS（`/home/user/run`）必须留在容器本地。跨重启持久化靠 `mysql-backup` sidecar 定期向 `/data/backups` 写 `nocodb-*.sql.gz` 逻辑备份 + 每次启动自动恢复（最多丢失一个备份间隔）；不要在 `/data` 上直接放置 MySQL/Redis 数据目录，volume 写入只用新建/删除，不用 tmp+rename。
 - `DATA_DIR` 在配置文档中可见，但当前 Supervisor、Nginx、MySQL socket、healthcheck 和脚本都围绕 `/data` 写死；不要把它当成可自由切换的 runtime 开关。
 - entrypoint 生成的 secrets 属于 `/data/config/generated.env`；`/data/config/supervisor.env` 也是敏感诊断快照。不要提交真实 secret，不要把 generated secret 写入 README、docs、test fixture、日志样例、PR 文案或 public catalog。
@@ -82,10 +82,10 @@ cat docker/AGENTS.md
 - Nginx HTML 注入依赖 `ngx_http_sub_module` 和 `Accept-Encoding ""`；修改 `sub_filter` 或 `location /` 时同步验证镜像内 `nginx -V` 和 `nginx -t`。
 - Shell 脚本保持 `#!/usr/bin/env bash` 与 `set -euo pipefail`。
 - `docker/ops_service.py` 只使用 Python 标准库，不新增第三方 Python 依赖或包管理体系。
-- NocoDB runtime 来自 pinned 官方 OCI image，并完整保存在 `/opt/nocodb-runtime`；`docker/nocodb.sh` 负责启动其中的 musl Node runtime，不要退回已停止发布的 `Noco-linux-*` executable 下载路径。
+- NocoDB runtime 由 manifest-first bootstrap 从 pinned 官方 OCI source ref 生成的已校验 archive 解包到容器本地 `/home/user/run/nocodb-runtime`；`docker/nocodb.sh` 负责启动其中的 musl Node runtime。不要退回 standalone executable、Docker build-stage OCI COPY、目录扫描或旧 runtime fallback。
 - 新增长期依赖前先确认是否可以用现有 Bash、Python 标准库、Dockerfile package 或 Nginx/Supervisor 配置解决。
 - 修改 MySQL/NocoDB 版本时只改明确的 version surface，并在最终说明中标注兼容性、迁移和 release pin 风险。
-- 发布态构建必须保持 `UBUNTU_VERSION`、`MYSQL_SERVER_PACKAGE` / `MYSQL_CLIENT_PACKAGE` 和 `NOCODB_IMAGE_REF` 不可变；当前默认值已经 pin 到 Ubuntu digest、MySQL 9.7.1 和 NocoDB `2026.07.0` OCI digest。
+- 发布态构建必须保持 `UBUNTU_VERSION`、`MYSQL_SERVER_PACKAGE` / `MYSQL_CLIENT_PACKAGE`、`NOCODB_SOURCE_REF` 和完整 `WRAPPER_SOURCE_REF` 不可变；前者默认值已经 pin 到 Ubuntu digest、MySQL 9.7.1 和 NocoDB `2026.07.0` OCI digest，后者由 clean Git tree 或 Space exporter 固化。`NOCODB_IMAGE_REF` 仅是本地 build script 的兼容别名。
 
 ## 联动修改规则
 
@@ -127,7 +127,8 @@ scripts/static-check.sh
 
 ```bash
 bash -n docker/entrypoint.sh docker/healthcheck.sh docker/mysql-backup.sh docker/nocodb.sh scripts/*.sh
-python3 -m py_compile docker/ops_service.py
+python3 -m py_compile docker/ops_service.py docker/nocodb_bootstrap.py
+scripts/check-hfs-artifact-contract.sh
 git diff --check
 git diff --cached --check
 ```

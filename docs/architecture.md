@@ -1,125 +1,69 @@
 # 架构说明
 
-`DB-all-in-one-HFS` 是一个 Hugging Face Docker Space demo bundle。它优先满足 HF Docker Space 的单容器入口约束：容器内可以有多个进程，但对外只暴露 Nginx 的 `7860`。
+`DB-all-in-one-HFS` 是 Hugging Face Docker Space demo bundle。它满足单容器和单公网入口约束，但并非生产级数据库平台：对外只有 Nginx `7860`，容器内由 Supervisor 管理多个内部服务。
+
+## HFS v2 artifact 边界
+
+这是 Pattern A port wrapper。GitHub main 是可写的 wrapper 与发布流程事实源；Space 只消费导出的 allowlisted wrapper，不保存 NocoDB 产品 rootfs、`local/`、`.env*`、缓存、生成数据或凭据。
+
+```text
+approved GitHub commit
+  ├─ publish workflow: pinned OCI ref -> rootfs archive -> readback -> manifest-last
+  ├─ GitHub Release: immutable historical archive (tag releases)
+  └─ hfs-dist/db-all-in-one-hfs/{edge,release}/
+       ├─ nocodb-runtime-<tag>-<wrapper-commit>.tar.gz
+       └─ manifest.json -> the one current archive
+
+Space startup
+  manifest URL -> validate -> one archive download -> SHA-256/layout check
+  -> container-local /home/user/run/nocodb-runtime/rootfs -> NocoDB
+```
+
+`manifest.json` 的最小运行契约由 `docker/nocodb_bootstrap.py` 实施：schema version、项目、slot、`oci-image` source ref、与导出 Dockerfile 固化值相同的完整 wrapper Git SHA、生成时间、唯一 archive 名称、无凭据且无 query/fragment 的 HTTPS URL、大小和 SHA-256 都必须匹配。它不扫描 slot、不接受直接 archive 输入、不使用旧 runtime 或 OCI build-stage fallback。解包前拒绝路径穿越、设备、FIFO，以及指向 `rootfs/` 外的硬链接或软链接；解包后校验本机架构所需 musl loader、可执行 Node 和 NocoDB entrypoint。
 
 ## 容器内组件
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    Docker Container (UID 1000)               │
-│                                                             │
-│  ┌──────────────────┐     ┌──────────────────────────────┐ │
-│  │  Nginx (:7860)   │────▶│  NocoDB (:8080)              │ │
-│  │  reverse proxy   │     │  Database UI / REST / GQL    │ │
-│  └────────┬─────────┘     └──────────────┬───────────────┘ │
-│           │                              │                  │
-│           │  /_ops/                       │                  │
-│           ▼                              ▼                  │
-│  ┌──────────────────┐     ┌──────────────────────────────┐ │
-│  │  ops-service     │     │  MySQL 9.7 LTS (:3306)       │ │
-│  │  (:8081)         │     │  127.0.0.1 only              │ │
-│  └──────────────────┘     └──────────────────────────────┘ │
-│                                                             │
-│                           ┌──────────────────────────────┐ │
-│                           │  Redis (:6379)               │ │
-│                           │  NocoDB cache layer          │ │
-│                           └──────────────────────────────┘ │
-│                                                             │
-│  Process Manager: supervisord                               │
-│  Init: tini                                                 │
+│                 Docker Container (UID 1000)                  │
+│  nginx :7860 ──┬── NocoDB :8080 (127.0.0.1)                 │
+│                └── ops-service :8081 (127.0.0.1)             │
+│  MySQL :3306 (127.0.0.1)   Redis :6379 (127.0.0.1)           │
+│  tini -> entrypoint -> supervisord                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-所有进程都在镜像的 `USER 1000` 下运行。镜像构建阶段安装 MySQL、Redis、Nginx、Supervisor 和 Python，并把 pinned 官方 NocoDB OCI image rootfs 复制到 `/opt/nocodb-runtime`。`docker/nocodb.sh` 使用该 rootfs 自带的 musl Node runtime 启动 NocoDB，运行阶段不需要 root 权限。
+Dockerfile 只安装 Ubuntu、MySQL、Redis、Nginx、Supervisor、Python 和 bootstrap wrapper。`NOCODB_SOURCE_REF` 仍以官方 tag + OCI digest 固定来源，但该 OCI image 不再作为 Docker multi-stage runtime。为兼容 musl Node，镜像在构建时仅设置一个指向固定容器本地 runtime 位置的 loader link；该 link 在成功 bootstrap 前不可用，因而失败会停止启动而不是伪健康。
 
-MySQL 9.7 通过 `docker/my.cnf` 启用 `container_aware`，按容器 cgroup 限制识别可用内存；同时关闭 InnoDB buffer pool 的 `innodb_numa_interleave`，避免启动阶段执行不允许的 NUMA 内存策略调用。该参数不控制 MySQL TempTable engine 自身的 libnuma allocation；后者在 HF Space 上可能留下非致命的裸 `mbind: Operation not permitted`，但不影响当前 TempTable allocation 结果或服务健康。
+## 启动顺序
 
-## 启动流程
+1. `tini` 启动 `entrypoint.sh`。
+2. 验证 `/data` 与固定端口/locale 约束；先执行 artifact bootstrap。
+3. bootstrap 成功后创建运行目录、加载或生成 secret、初始化容器本地 MySQL datadir。
+4. 临时启动 MySQL，创建数据库/用户，从 `/data/backups` 中由新到旧恢复第一份可读逻辑 dump，然后交给 Supervisor。
+5. Supervisor 启动 MySQL、Redis、NocoDB、ops-service 和 Nginx。
 
-1. `tini` 作为 PID 1 init 进程
-2. `entrypoint.sh` 执行：
-   - 创建目录结构
-   - 生成/加载 secrets（持久化到 `/data/config/generated.env`）
-   - 校验固定内部端口：`PORT=8080`、`OPS_PORT=8081`
-   - 初始化 MySQL 数据目录（首次运行）
-   - 临时启动 MySQL 创建数据库和用户
-   - 停止临时 MySQL
-   - 写入 `/home/user/run/redis.conf`
-   - 导出 NocoDB、Redis、MySQL、ops-service 所需环境变量
-   - 写入 `/home/user/run/db-aio-public/nocodb-locale-init.js`，用于初始化 NocoDB UI 默认语言
-   - 写入 `/data/config/supervisor.env` 作为诊断用快照
-   - 启动 supervisord
-3. `supervisord` 按优先级启动：
-   - MySQL (priority 10)
-   - Redis (priority 20)
-   - NocoDB (priority 40)
-   - ops-service (priority 50)
-   - Nginx (priority 80)
+因此 manifest 或 archive 失败发生在 MySQL 初始化、secret 写入、备份恢复和 Supervisor 启动之前，避免 artifact 下载失败改动持久化应用状态。
 
-## 网络
+## 持久化与恢复
 
-| 服务 | 地址 | 外部可达 | 说明 |
-| --- | --- | --- | --- |
-| Nginx | `0.0.0.0:7860` | Yes | HF Space `app_port`，唯一公网入口 |
-| NocoDB | `127.0.0.1:8080` | No | 由 Nginx 代理 `/` 和 `/socket.io/` |
-| ops-service | `127.0.0.1:8081` | No | 由 Nginx 代理 `/healthz` 和 `/_ops/` |
-| MySQL | `127.0.0.1:3306` | No | NocoDB 通过 TCP 连接；CLI/health 可用 Unix socket |
-| Redis | `127.0.0.1:6379` | No | NocoDB 缓存层 |
-
-Nginx 路由：
-
-| 外部路径 | 上游 | 鉴权 |
-| --- | --- | --- |
-| `/` | NocoDB `http://127.0.0.1:8080` | NocoDB 自身鉴权 |
-| `/signup`、`/signup/` | Nginx redirect to `/signin/` | 无 |
-| `/socket.io/` | NocoDB WebSocket | NocoDB 自身鉴权 |
-| `/__db_aio/nocodb-locale-init.js` | Nginx 本地静态文件 | 无 |
-| `/nginx-health` | Nginx 本地响应 | 无 |
-| `/healthz` | ops-service `/healthz` | 无 |
-| `/_ops/` | ops-service `/` | `OPS_TOKEN` |
-| `/_ops/*` | ops-service `/*` | 除 `/_ops/healthz` 外需要 `OPS_TOKEN` |
-
-## 持久化
-
-`/data` 卷只承载普通文件语义安全的持久数据。HF bucket volume 是 FUSE 对象存储，不支持 unix socket 和 rename 语义，因此 MySQL/Redis 运行数据放在容器本地盘，通过逻辑备份恢复实现跨重启持久化：
-
-```
-/data/
-├── config/          # generated.env, supervisor.env
-├── logs/            # supervisor、MySQL、Redis、NocoDB、Nginx、mysql-backup stdout 日志
-├── backups/         # mysql-backup sidecar 定期写入的 nocodb-*.sql.gz 逻辑备份
-└── nocodb/          # NocoDB 应用数据和上传文件
-
-/home/user/          # 容器本地（重启即清空）
-├── mysql/           # MySQL 数据文件（InnoDB redo 需要 POSIX rename 语义）
-├── redis/           # Redis RDB 快照（缓存，可丢失）
-└── run/             # PID 文件、socket、redis.conf、nginx temp
-    ├── db-aio-public/  # Nginx 公开的 wrapper 静态初始化文件
-    ├── mysqld/
-    └── nginx/
-```
-
-启动时 `entrypoint.sh` 在容器本地初始化 MySQL 数据目录，并自动恢复 `/data/backups/` 中最新可读的 `nocodb-*.sql.gz`（从新到旧依次尝试，跳过上传不完整的文件）。`mysql-backup` sidecar 每 `MYSQL_BACKUP_INTERVAL` 秒（默认 300）写入一份新的逻辑备份，保留最新 `MYSQL_BACKUP_KEEP` 份（默认 6），优雅停机时再写一份。跨重启/重建的数据窗口最多是一个备份间隔。
-
-`DATA_DIR` 在入口脚本中有默认值，但当前镜像的 Supervisor、MySQL、Nginx、healthcheck 和脚本都围绕 `/data` 与 `/home/user` 写死。不要把它当成可随意改动的运行时开关。
-
-## 安全边界
-
-- MySQL 不对外暴露；NocoDB 通过 `mysql2://127.0.0.1:3306` 连接
-- Redis 不对外暴露，仅 NocoDB 使用
-- ops-service 只提供 `GET` 只读诊断接口，不提供写操作
-- `/_ops/healthz` 和 `/healthz` 不需要 token；其他 `/_ops` 诊断接口需要 `OPS_TOKEN`
-- `/_ops/config` 只返回白名单配置，不返回 MySQL 密码、JWT secret 或 ops token
-- 密钥自动生成并持久化，保存在 `/data/config/generated.env`，重启不变
-
-## 健康检查
-
-Docker `HEALTHCHECK` 依次检查：
+HF bucket mount 是 FUSE 对象存储，不适合 unix socket、InnoDB redo 或 Redis RDB 的 rename 语义：
 
 ```text
-http://127.0.0.1:8080/api/v1/health
-http://127.0.0.1:8081/healthz
-http://127.0.0.1:7860/nginx-health
+/data/                         # 挂载面：只存普通文件
+├── config/                    # generated.env、supervisor.env（敏感）
+├── logs/
+├── backups/nocodb-*.sql.gz    # MySQL 逻辑 dump；create/read/delete only
+└── nocodb/                    # 应用数据与上传文件
+
+/home/user/                    # 容器本地，重启后需重建
+├── mysql/                     # InnoDB datadir
+├── redis/                     # Redis RDB
+└── run/                       # socket、pid、Nginx temp、artifact runtime
 ```
 
-对外可用的综合健康接口是 `/healthz`。它由 ops-service 检查 MySQL、Redis 和 NocoDB，并在任一检查失败时返回 `503`。
+`mysql-backup` 定期创建 timestamped gzip dump 并执行 `gzip -t`；停止时再执行一次。启动恢复只读取 `/data/backups/nocodb-*.sql.gz`，按文件名从新到旧尝试，跳过损坏或上传不完整的 dump。不要把 MySQL/Redis datadir 移到 `/data`，不要把 artifact archive 或 runtime rootfs 挂载到 `/data`，也不要在未隔离演练的情况下对真实数据执行 restore。
+
+## 健康、Provenance 与诊断
+
+Docker healthcheck 依次请求 NocoDB、ops-service 和 Nginx。公开 `/healthz` 只有全部内部依赖正常才返回 200。认证后的 `/_ops/provenance` 输出已验证的 `source_ref`、wrapper SHA、slot、archive 名称、SHA-256 和生成时间，不输出 artifact URL、Settings、secret 或完整环境。
