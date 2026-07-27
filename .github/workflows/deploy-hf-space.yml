@@ -3,6 +3,11 @@ name: deploy-hf-space-wrapper
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: "Explicit HFS manifest profile"
+        required: true
+        type: choice
+        options: [candidate, production]
       confirmation:
         description: "Type DEPLOY_DB_AIO_HFS to authorize this wrapper upload"
         required: true
@@ -17,20 +22,53 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      HF_SPACE_ID: BlueSkyXN/db-all-in-one
+      HFS_TARGET: ${{ inputs.target }}
+      HFS_MANIFEST: ${{ inputs.target == 'candidate' && 'hfs-dev.candidate.toml' || 'hfs-dev.toml' }}
     steps:
       - name: Checkout reviewed GitHub source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pinned Hugging Face CLI
+        run: |
+          python -m pip install --disable-pip-version-check "huggingface_hub==1.5.0"
+          hf version
+
       - name: Export the allowlisted Pattern A wrapper
         shell: bash
         run: |
           set -euo pipefail
-          command -v hf >/dev/null || { echo 'HF CLI is required on the runner.' >&2; exit 1; }
           test -n "${HF_TOKEN}" || { echo 'HF_TOKEN Secret is required.' >&2; exit 1; }
-          scripts/export-space-bundle.sh "${RUNNER_TEMP}/space-bundle"
+          HFS_MANIFEST="$HFS_MANIFEST" scripts/export-space-bundle.sh "${RUNNER_TEMP}/space-bundle"
+
+      - name: Resolve and preflight fixed target Space
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+          from huggingface_hub import HfApi
+
+          manifest = tomllib.loads(Path(os.environ["HFS_MANIFEST"]).read_text(encoding="utf-8"))
+          space_id = manifest["space"]
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          info = api.repo_info(repo_id=space_id, repo_type="space")
+          if os.environ["HFS_TARGET"] == "candidate" and not info.private:
+              raise SystemExit("candidate Space must be private")
+          bundle = Path(os.environ["RUNNER_TEMP"]) / "space-bundle"
+          expected = {path.relative_to(bundle).as_posix() for path in bundle.rglob("*") if path.is_file()}
+          remote = set(api.list_repo_files(repo_id=space_id, repo_type="space"))
+          unexpected = remote - expected - {".gitattributes"}
+          if unexpected:
+              raise SystemExit(f"refusing non-wrapper Space tree: {sorted(unexpected)}")
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env_file:
+              env_file.write(f"HF_SPACE_ID={space_id}\n")
+          PY
 
       - name: Upload wrapper without force-push or deletion
         shell: bash
@@ -57,4 +95,17 @@ jobs:
           if len(ref) != 40 or any(c not in "0123456789abcdef" for c in ref):
               raise SystemExit("Space BUILD_SOURCE.json lacks a full immutable wrapper SHA")
           print(f"Space wrapper readback verified: {ref}")
+          PY
+          BUNDLE="${RUNNER_TEMP}/space-bundle" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from huggingface_hub import HfApi
+
+          bundle = Path(os.environ["BUNDLE"])
+          expected = {path.relative_to(bundle).as_posix() for path in bundle.rglob("*") if path.is_file()}
+          remote = set(HfApi(token=os.environ["HF_TOKEN"]).list_repo_files(
+              repo_id=os.environ["HF_SPACE_ID"], repo_type="space"
+          ))
+          if remote - expected - {".gitattributes"} or expected - remote:
+              raise SystemExit("full Space tree readback differs from wrapper allowlist")
           PY

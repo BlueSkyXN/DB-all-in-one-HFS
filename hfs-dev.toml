@@ -1,6 +1,6 @@
 standard = "2.0"
 project = "db-all-in-one-hfs"
-space = "BlueSkyXN/db-all-in-one"
+space = "BlueSkyXN/db-all-in-one-hfs"
 sovereignty = "port"
 lane = "artifact"
 version_source = "tag"

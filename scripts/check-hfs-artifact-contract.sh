@@ -13,7 +13,7 @@ manifest = tomllib.loads(Path("hfs-dev.toml").read_text(encoding="utf-8"))
 expected = {
     "standard": "2.0",
     "project": "db-all-in-one-hfs",
-    "space": "BlueSkyXN/db-all-in-one",
+    "space": "BlueSkyXN/db-all-in-one-hfs",
     "sovereignty": "port",
     "lane": "artifact",
     "version_source": "tag",
@@ -22,6 +22,12 @@ expected = {
 for key, value in expected.items():
     if manifest.get(key) != value:
         raise SystemExit(f"hfs-dev.toml: {key} must be {value!r}")
+candidate = tomllib.loads(Path("hfs-dev.candidate.toml").read_text(encoding="utf-8"))
+if candidate.get("space") != "BlueSkyXN/db-all-in-one-hfs-v2-candidate":
+    raise SystemExit("candidate manifest has the wrong fixed Space id")
+for key in sorted(set(manifest) | set(candidate)):
+    if key != "space" and manifest.get(key) != candidate.get(key):
+        raise SystemExit(f"candidate manifest differs from production at {key}")
 if "NOCODB_ARTIFACT_MANIFEST_URL" not in manifest.get("variables", []):
     raise SystemExit("hfs-dev.toml must register NOCODB_ARTIFACT_MANIFEST_URL")
 if set(manifest.get("local_only", [])) != {"HF_TOKEN", "GH_TOKEN"}:
@@ -79,6 +85,7 @@ for required in (
     "hf buckets cp \"${artifact_uri}\" \"readback/${artifact_name}\"",
     "gh release download",
     "sha256sum -c -",
+    "huggingface_hub==1.5.0",
 ):
     if required not in publisher:
         raise SystemExit(f"artifact publisher missing required contract gate: {required}")
@@ -87,7 +94,12 @@ for forbidden in ("--clobber", "--force", "git push", "hf upload --delete"):
         raise SystemExit(f"artifact publisher contains forbidden remote mutation: {forbidden}")
 
 deployer = Path(".github/workflows/deploy-hf-space.yml").read_text(encoding="utf-8")
-for required in ("workflow_dispatch", "DEPLOY_DB_AIO_HFS", "hf upload", "cmp "):
+for required in (
+    "workflow_dispatch", "DEPLOY_DB_AIO_HFS", "hf upload", "cmp ",
+    "hfs-dev.candidate.toml", "candidate Space must be private",
+    "refusing non-wrapper Space tree", "full Space tree readback",
+    "huggingface_hub==1.5.0",
+):
     if required not in deployer:
         raise SystemExit(f"wrapper deployer missing required contract gate: {required}")
 for forbidden in ("--force", "git push", "--delete", "restart_space", "factory_reboot"):

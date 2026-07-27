@@ -6,11 +6,16 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 output_dir=${1:-}
+manifest_file=${HFS_MANIFEST:-hfs-dev.toml}
 
 if [ -z "${output_dir}" ]; then
   printf 'usage: %s <empty-output-directory>\n' "$0" >&2
   exit 2
 fi
+case "${manifest_file}" in
+  hfs-dev.toml|hfs-dev.candidate.toml) ;;
+  *) printf 'HFS_MANIFEST must be hfs-dev.toml or hfs-dev.candidate.toml.\n' >&2; exit 2 ;;
+esac
 
 if [ -n "$(git -C "${repo_root}" status --porcelain)" ]; then
   printf 'refusing to export from a dirty Git working tree (tracked, staged, or untracked changes); commit the reviewed source first.\n' >&2
@@ -29,9 +34,10 @@ if [ -e "${output_dir}" ] && [ -n "$(find "${output_dir}" -mindepth 1 -maxdepth 
 fi
 mkdir -p "${output_dir}/docker"
 
-for file in Dockerfile README.md hfs-dev.toml .dockerignore; do
+for file in Dockerfile README.md .dockerignore; do
   cp "${repo_root}/${file}" "${output_dir}/${file}"
 done
+cp "${repo_root}/${manifest_file}" "${output_dir}/hfs-dev.toml"
 for file in \
   my.cnf supervisord.conf nginx.conf entrypoint.sh healthcheck.sh nocodb.sh \
   nocodb_bootstrap.py mysql-backup.sh ops_service.py
