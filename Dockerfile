@@ -9,8 +9,8 @@
 
 ARG UBUNTU_VERSION=24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 ARG MYSQL_VERSION=9.7
-ARG MYSQL_SERVER_PACKAGE=mysql-server=9.7.1-1ubuntu24.04
-ARG MYSQL_CLIENT_PACKAGE=mysql-client=9.7.1-1ubuntu24.04
+ARG MYSQL_SERVER_PACKAGE=mysql-server=9.7.2-1ubuntu24.04
+ARG MYSQL_CLIENT_PACKAGE=mysql-client=9.7.2-1ubuntu24.04
 ARG NOCODB_SOURCE_REF=nocodb/nocodb:2026.07.0@sha256:fb359673c42fb69058e880710e446f8039afeb64632ca8d8dfcfdcc407ebb058
 # scripts/build.sh supplies and export-space-bundle.sh embeds a full Git SHA here.
 ARG WRAPPER_SOURCE_REF=unknown
