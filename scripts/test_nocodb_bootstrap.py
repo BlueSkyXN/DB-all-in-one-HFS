@@ -11,6 +11,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "docker" / "nocodb_bootstrap.py"
 spec = importlib.util.spec_from_file_location("nocodb_bootstrap", MODULE_PATH)
@@ -39,6 +40,23 @@ class NocoDBBootstrapContractTest(unittest.TestCase):
         path = directory / "manifest.json"
         path.write_text(json.dumps(manifest), encoding="utf-8")
         return path
+
+    def test_private_download_keeps_bearer_token_out_of_argv(self) -> None:
+        token = "hf_" + "a" * 32
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "manifest.json"
+            with mock.patch.dict(os.environ, {"NOCODB_ARTIFACT_DOWNLOAD_TOKEN": token}), mock.patch.object(
+                bootstrap.subprocess, "run"
+            ) as run:
+                bootstrap.download("https://huggingface.co/buckets/example/manifest.json", destination)
+        command = run.call_args.args[0]
+        self.assertNotIn(token, " ".join(command))
+        self.assertEqual(command[command.index("--config") + 1], "-")
+        self.assertEqual(
+            run.call_args.kwargs["input"],
+            f'header = "Authorization: Bearer {token}"\n',
+        )
+        self.assertTrue(run.call_args.kwargs["text"])
 
     def test_manifest_rejects_wrong_source_or_unsafe_url(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

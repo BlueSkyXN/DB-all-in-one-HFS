@@ -7,6 +7,7 @@ version_source = "tag"
 
 local_only = ["HF_TOKEN", "GH_TOKEN"]
 secrets = [
+  "NOCODB_ARTIFACT_DOWNLOAD_TOKEN",
   "MYSQL_ROOT_PASSWORD",
   "MYSQL_PASSWORD",
   "NC_AUTH_JWT_SECRET",
