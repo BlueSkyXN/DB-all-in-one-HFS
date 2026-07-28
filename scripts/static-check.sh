@@ -57,6 +57,24 @@ for option, expected_value in expected.items():
     print(f"  {option}={value.strip()}")
 PY
 
+printf '%s\n' '=== Supervisor NocoDB wrapper check ==='
+python3 - <<'PY'
+from configparser import ConfigParser
+from pathlib import Path
+
+path = Path("docker/supervisord.conf")
+config = ConfigParser(interpolation=None)
+with path.open(encoding="utf-8") as config_file:
+    config.read_file(config_file)
+
+program = config["program:nocodb"]
+if program.get("command") != "/usr/local/bin/db-aio-nocodb":
+    raise SystemExit(f"{path}: NocoDB must start through the verified runtime wrapper")
+if program.get("directory") != "/home/user":
+    raise SystemExit(f"{path}: Supervisor must not chdir into the artifact rootfs before the wrapper starts")
+print("  NocoDB Supervisor working directory is wrapper-owned and always present")
+PY
+
 printf '%s\n' '=== HFS artifact contract check ==='
 scripts/check-hfs-artifact-contract.sh
 
