@@ -85,7 +85,7 @@ for required in (
     "hf buckets cp \"${artifact_uri}\" \"readback/${artifact_name}\"",
     "gh release download",
     "sha256sum -c -",
-    "huggingface_hub==1.5.0",
+    "huggingface_hub[cli]==1.5.0",
 ):
     if required not in publisher:
         raise SystemExit(f"artifact publisher missing required contract gate: {required}")
@@ -98,7 +98,7 @@ for required in (
     "workflow_dispatch", "DEPLOY_DB_AIO_HFS", "hf upload", "cmp ",
     "hfs-dev.candidate.toml", "candidate Space must be private",
     "refusing non-wrapper Space tree", "full Space tree readback",
-    "huggingface_hub==1.5.0",
+    "huggingface_hub[cli]==1.5.0",
 ):
     if required not in deployer:
         raise SystemExit(f"wrapper deployer missing required contract gate: {required}")
