@@ -7,7 +7,7 @@
 以 `.env.example` 创建受保护的 `.env`，再在适当的本地/CI 环境使用。模板只包含空键名：
 
 - 本地控制面：`HF_TOKEN`、`GH_TOKEN`。二者不得成为 Space Secret/Variable。
-- Space Secrets：`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
+- Space Secrets：`NOCODB_ARTIFACT_DOWNLOAD_TOKEN`、`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
 - Space Variables：`NC_SITE_URL`、`NC_DEFAULT_LOCALE`、`NOCODB_ARTIFACT_MANIFEST_URL`、`NOCODB_ARTIFACT_SLOT`。
 
 `.gitignore` 与 `.dockerignore` 同时排除 `.env*`（保留 `.env.example`）、`local/`、缓存、runtime data、SQL dump、archive 和 key material。
@@ -18,6 +18,7 @@
 |---|---:|---|
 | `NOCODB_ARTIFACT_MANIFEST_URL` | 是 | 无 credential/query 的 HTTPS `manifest.json` URL；启动仅读取一次 |
 | `NOCODB_ARTIFACT_SLOT` | 是 | `edge` 或 `release`，必须与 manifest 完全相同 |
+| `NOCODB_ARTIFACT_DOWNLOAD_TOKEN` | 是（Space Secret） | 私有 HFS bucket 的只读 token；只作为首跳 Bearer header 使用，不写入 URL、argv、manifest 或日志 |
 | `NOCODB_SOURCE_REF` | 否（image build pin） | `Dockerfile` 内固定的 NocoDB tag + OCI digest；bootstrap 将其与 manifest `source_ref` 比对 |
 
 `NOCODB_ARTIFACT_MANIFEST_URL` 不是 direct archive URL。manifest 必须声明 `schema_version=1`、项目、slot、`source_kind=oci-image`、tag+digest source ref、完整 wrapper commit、生成时间和一个 archive 的名称/HTTPS URL/SHA-256/size。任一字段不符合或 archive rootfs 不包含适配架构的 musl loader、Node、`docker/index.js` 时启动失败。

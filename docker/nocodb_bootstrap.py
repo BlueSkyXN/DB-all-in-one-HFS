@@ -21,6 +21,7 @@ MANIFEST_SCHEMA_VERSION = 1
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.tar\.gz$")
 GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
+DOWNLOAD_TOKEN = re.compile(r"^[A-Za-z0-9._-]{20,}$")
 
 
 class BootstrapError(RuntimeError):
@@ -48,6 +49,9 @@ def require_https_url(value: object, field: str) -> str:
 
 
 def download(url: str, destination: Path) -> None:
+    token = os.environ.get("NOCODB_ARTIFACT_DOWNLOAD_TOKEN", "").strip()
+    if not DOWNLOAD_TOKEN.fullmatch(token):
+        fail("NOCODB_ARTIFACT_DOWNLOAD_TOKEN is required and has an invalid format")
     command = [
         "curl",
         "--fail",
@@ -59,12 +63,21 @@ def download(url: str, destination: Path) -> None:
         "--proto-redir",
         "=https",
         "--tlsv1.2",
+        "--config",
+        "-",
         "--output",
         str(destination),
         url,
     ]
     try:
-        subprocess.run(command, check=True)
+        # Keep the bearer token out of argv and let curl drop the sensitive
+        # header automatically when Hugging Face redirects to object storage.
+        subprocess.run(
+            command,
+            check=True,
+            input=f'header = "Authorization: Bearer {token}"\n',
+            text=True,
+        )
     except subprocess.CalledProcessError as exc:
         fail(f"download failed for {url}: exit {exc.returncode}")
 

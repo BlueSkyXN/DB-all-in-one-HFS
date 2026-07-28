@@ -30,6 +30,8 @@ for key in sorted(set(manifest) | set(candidate)):
         raise SystemExit(f"candidate manifest differs from production at {key}")
 if "NOCODB_ARTIFACT_MANIFEST_URL" not in manifest.get("variables", []):
     raise SystemExit("hfs-dev.toml must register NOCODB_ARTIFACT_MANIFEST_URL")
+if "NOCODB_ARTIFACT_DOWNLOAD_TOKEN" not in manifest.get("secrets", []):
+    raise SystemExit("hfs-dev.toml must register NOCODB_ARTIFACT_DOWNLOAD_TOKEN")
 if set(manifest.get("local_only", [])) != {"HF_TOKEN", "GH_TOKEN"}:
     raise SystemExit("hfs-dev.toml local_only must contain only deployment control keys")
 
@@ -52,6 +54,7 @@ if main_body.index("bootstrap_nocodb_runtime") > main_body.index("init_mysql"):
     raise SystemExit("artifact bootstrap must run before MySQL initialization")
 for required in (
     "NOCODB_ARTIFACT_MANIFEST_URL is required",
+    "NOCODB_ARTIFACT_DOWNLOAD_TOKEN is required",
     "NOCODB_ARTIFACT_SLOT must be edge or release",
     "--source-ref \"${NOCODB_SOURCE_REF}\"",
     "--wrapper-source-ref \"${NOCODB_WRAPPER_SOURCE_REF}\"",

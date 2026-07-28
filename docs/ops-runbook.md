@@ -27,7 +27,7 @@ curl -H "X-Ops-Token: $OPS_TOKEN" http://localhost:7860/_ops/config
 
 manifest/bootstrap 失败时容器在 MySQL 初始化和 `/data` 写入前退出。排查只限无密元数据：
 
-1. 确认 Space Variable `NOCODB_ARTIFACT_MANIFEST_URL` 是无凭据 HTTPS manifest URL，`NOCODB_ARTIFACT_SLOT` 为 `edge` 或 `release`。
+1. 确认 Space Variable `NOCODB_ARTIFACT_MANIFEST_URL` 是无凭据 HTTPS manifest URL，`NOCODB_ARTIFACT_SLOT` 为 `edge` 或 `release`，并且 Space Secret `NOCODB_ARTIFACT_DOWNLOAD_TOKEN` 已登记；Secret 只核名称，不打印值。
 2. 在发布 receipt 中核对 slot manifest 的 `source_ref` 是否等于 Dockerfile `NOCODB_SOURCE_REF`、`wrapper_source_ref` 是否完整 40 位、archive name/size/SHA-256 是否 readback 成功。
 3. 确认 artifact URL 的 basename 与 manifest archive name 相同，archive 的 rootfs 含当前架构 musl loader、Node 和 `usr/src/app/docker/index.js`。
 4. 不要以 direct archive、`latest`、目录列举、旧 `/home/user/run/nocodb-runtime` 或 Dockerfile OCI COPY 作为临时 fallback。修复明确 manifest/artifact 后重新启动即可。

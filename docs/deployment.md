@@ -41,7 +41,7 @@ workflow 需要预先由 owner 配置的 `HF_TOKEN` Secret、`HFS_BUCKET_NAMESPA
 先按 [配置参考](./configuration.md) 仅设置登记键名：
 
 - Variables：`NC_SITE_URL`、`NC_DEFAULT_LOCALE`、`NOCODB_ARTIFACT_MANIFEST_URL`、`NOCODB_ARTIFACT_SLOT`。
-- Secrets：`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
+- Secrets：`NOCODB_ARTIFACT_DOWNLOAD_TOKEN`、`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
 
 发布后 Space 启动必须由 manifest 驱动。缺少 `NOCODB_ARTIFACT_MANIFEST_URL`、slot 不匹配、下载失败、SHA/size/source ref/wrapper SHA/rootfs layout 任一不匹配都会退出，且发生在 MySQL 初始化和 `/data` 写入之前。
 
@@ -52,6 +52,7 @@ scripts/static-check.sh
 scripts/build.sh
 NOCODB_ARTIFACT_MANIFEST_URL='https://<approved-dist-host>/db-all-in-one-hfs/release/manifest.json' \
 NOCODB_ARTIFACT_SLOT='release' \
+NOCODB_ARTIFACT_DOWNLOAD_TOKEN='<private-bucket-read-token>' \
 scripts/run-demo.sh
 scripts/smoke.sh http://localhost:7860
 ```

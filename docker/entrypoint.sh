@@ -95,6 +95,10 @@ bootstrap_nocodb_runtime() {
     log "ERROR: NOCODB_ARTIFACT_MANIFEST_URL is required; refusing to start without an explicit artifact manifest."
     return 1
   fi
+  if [ -z "${NOCODB_ARTIFACT_DOWNLOAD_TOKEN:-}" ]; then
+    log "ERROR: NOCODB_ARTIFACT_DOWNLOAD_TOKEN is required for the private artifact bucket."
+    return 1
+  fi
   if [ "${NOCODB_ARTIFACT_SLOT}" != "edge" ] && [ "${NOCODB_ARTIFACT_SLOT}" != "release" ]; then
     log "ERROR: NOCODB_ARTIFACT_SLOT must be edge or release."
     return 1

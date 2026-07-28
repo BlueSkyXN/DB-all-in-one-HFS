@@ -61,6 +61,7 @@ scripts/build.sh
 # 但会替换同名容器。
 NOCODB_ARTIFACT_MANIFEST_URL='https://<approved-dist-host>/db-all-in-one-hfs/release/manifest.json' \
 NOCODB_ARTIFACT_SLOT='release' \
+NOCODB_ARTIFACT_DOWNLOAD_TOKEN='<private-bucket-read-token>' \
 scripts/run-demo.sh
 
 scripts/smoke.sh http://localhost:7860
@@ -73,7 +74,7 @@ scripts/smoke.sh http://localhost:7860
 在候选或已获批准的 Space 设置以下**键名**：
 
 - Variables：`NC_SITE_URL`、`NC_DEFAULT_LOCALE`、`NOCODB_ARTIFACT_MANIFEST_URL`、`NOCODB_ARTIFACT_SLOT`（只允许 `edge` 或 `release`）。
-- Secrets：`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
+- Secrets：`NOCODB_ARTIFACT_DOWNLOAD_TOKEN`、`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
 
 `HF_TOKEN` 和 `GH_TOKEN` 是本地/CI 控制面凭据，只登记在 `hfs-dev.toml` 的 `local_only`，绝不推送到 Space Settings。
 
