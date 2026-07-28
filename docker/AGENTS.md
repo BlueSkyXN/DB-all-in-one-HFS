@@ -13,7 +13,7 @@ This card is the runtime guardrail; root `AGENTS.md` has repo-wide rules.
 - `/_ops` stays read-only; `/config` safe keys only; logs redacted; `ops_service.py` stdlib only.
 - Locale init: `NC_DEFAULT_LOCALE` -> exact `/__db_aio/nocodb-locale-init.js` -> `sub_filter`.
 - `/signup` and `/signup/` exact redirect only; no wildcard `/signup/<token>`.
-- NocoDB runtime stays under `/opt/nocodb-runtime`; `nocodb.sh` starts the pinned official OCI image's musl Node runtime.
+- NocoDB runtime is verified from one manifest-selected archive under container-local `/home/user/run/nocodb-runtime`; `nocodb.sh` starts its musl Node runtime only after bootstrap succeeds.
 
 ## Before changes
 
@@ -22,7 +22,7 @@ This card is the runtime guardrail; root `AGENTS.md` has repo-wide rules.
 - Nginx HTML/locale: keep proxy headers, `Accept-Encoding ""`, exact alias; verify `ngx_http_sub_module`.
 - Service/log: update Supervisor, healthcheck, `SERVICE_LOGS`, Nginx, docs.
 - MySQL: preserve root auth reuse, socket, bind address, log paths.
-- NocoDB image: update `NOCODB_IMAGE_REF` tag and digest together; do not restore standalone executable downloads.
+- NocoDB artifact: update `NOCODB_SOURCE_REF` tag and digest together, rebuild/read back the archive, then publish manifest-last; do not restore standalone downloads, OCI COPY, directory scanning, or runtime fallback.
 
 ## Do not
 

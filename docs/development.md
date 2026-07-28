@@ -1,143 +1,56 @@
 # 开发指南
 
-## 前提
-
-- Docker (BuildKit)
-- Bash
-- Python 3 (用于 syntax check)
-
 ## 静态检查
 
 ```bash
 scripts/static-check.sh
-```
-
-包含：
-- `bash -n` 检查所有 shell 脚本语法
-- 如本机或 CI 环境存在 `shellcheck`，额外运行 ShellCheck；不存在时跳过
-- `python3 -m py_compile` 检查 ops_service.py
-- `git diff --check` 检查空白字符
-- `git diff --cached --check` 检查已暂存内容的空白字符
-
-## 构建与测试
-
-```bash
-# 构建镜像
-scripts/build.sh
-
-# 覆盖默认 pin 构建新的上游候选镜像
-NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' \
-scripts/build.sh db-all-in-one-hfs:<tag>
-
-# 运行 demo
-scripts/run-demo.sh
-
-# Smoke 测试公开端点
-scripts/smoke.sh http://localhost:7860
-```
-
-脚本参数：
-
-| Script | 参数 | 默认值 |
-| --- | --- | --- |
-| `scripts/build.sh` | image tag | `db-all-in-one-hfs:latest` |
-| `scripts/run-demo.sh` | image tag | `db-all-in-one-hfs:latest` |
-| `scripts/smoke.sh` | base URL | `http://localhost:7860` |
-
-`scripts/build.sh` 会透传 `UBUNTU_VERSION`、`MYSQL_VERSION`、`MYSQL_SERVER_PACKAGE`、`MYSQL_CLIENT_PACKAGE` 和 `NOCODB_IMAGE_REF` 环境变量为 Docker build args。仓库默认值已经 immutable pin；覆盖时必须保留 Ubuntu/NocoDB digest，并保持 MySQL server/client package 版本一致。
-
-Docker healthcheck 与 smoke 脚本不是同一层检查：
-
-- `docker/healthcheck.sh` 在容器内检查 NocoDB、ops-service 和 Nginx
-- `scripts/smoke.sh` 从外部检查 `/nginx-health`、`/healthz` 和 NocoDB 根路径
-
-ops 鉴权端点建议用 `curl -H "X-Ops-Token: $OPS_TOKEN"` 单独验证，不把它和公开 smoke 混在一起判断。
-
-## 修改检查清单
-
-### Shell 脚本修改
-
-```bash
-bash -n docker/entrypoint.sh docker/healthcheck.sh docker/nocodb.sh scripts/*.sh
-```
-
-### Python 修改
-
-```bash
-python3 -m py_compile docker/ops_service.py
-```
-
-### Nginx/端口修改
-
-同步检查：
-- `docker/nginx.conf` (listen / proxy_pass)
-- `docker/supervisord.conf` (command ports)
-- `docker/entrypoint.sh` (env defaults)
-- `docker/healthcheck.sh` (check URLs)
-- `docs/configuration.md`
-- `docs/architecture.md`
-- `README.md` (app_port)
-- `Dockerfile` (EXPOSE)
-
-### 新增环境变量
-
-同步检查：
-- `docker/entrypoint.sh` (defaults + export)
-- `docker/ops_service.py` (if safe to expose in /config)
-- `Dockerfile` (build args / ENV if applicable)
-- `docs/configuration.md`
-
-### Secret 或诊断面修改
-
-同步检查：
-- `docker/entrypoint.sh` 生成和持久化逻辑
-- `docker/ops_service.py` 是否会泄露敏感值
-- `docs/configuration.md` 的 secret 管理和 ops endpoint 表
-- `docs/ops-runbook.md` 的排障命令
-
-`ops-service` 是只读诊断面。不要在 `/_ops` 下新增写操作。
-
-## 文件职责
-
-| File | Role |
-| --- | --- |
-| `Dockerfile` | 构建入口，系统包安装，资产复制 |
-| `docker/entrypoint.sh` | 启动初始化：secret 生成、MySQL bootstrap、启动 supervisord |
-| `docker/nocodb.sh` | 启动 pinned 官方 NocoDB OCI runtime |
-| `docker/supervisord.conf` | 进程管理配置 |
-| `docker/nginx.conf` | 反向代理路由 |
-| `docker/my.cnf` | MySQL 性能和日志配置 |
-| `docker/healthcheck.sh` | Docker HEALTHCHECK |
-| `docker/ops_service.py` | 只读诊断 HTTP 服务 |
-| `scripts/build.sh` | 镜像构建 wrapper |
-| `scripts/run-demo.sh` | 本地运行 wrapper |
-| `scripts/smoke.sh` | HTTP smoke 测试 |
-| `scripts/static-check.sh` | 静态检查聚合 |
-
-## Build Context
-
-`.dockerignore` 会排除 `README.md`、`docs/` 和其他 Markdown 文件，避免文档进入镜像 build context。HF Space 仍会读取仓库根目录的 `README.md` 作为 Space card；这与 Docker build context 无关。
-
-## 提交前建议
-
-文档-only 修改至少运行：
-
-```bash
+python3 /Users/sky/Github/SKY-Prompt/hfs-dev/scripts/check_hfs_alignment.py .
 git diff --check
+git diff --cached --check
 ```
 
-Shell/Python/runtime 修改运行：
+`static-check.sh` 执行 shell syntax、可选 ShellCheck、Python compile、MySQL config invariant、HFS artifact contract 和离线 bootstrap tests。artifact tests 只在临时目录生成合成 archive，不读取 `.env`、`local/`、volume、数据库或网络资源。
 
-```bash
-scripts/static-check.sh
-```
+HFS shared checker 验证最小 `hfs-dev.toml` v2 registry；项目自己的 pin、checksum、manifest schema、bootstrap、persistence/backup 约束由 `Dockerfile`、`docker/nocodb_bootstrap.py` 和 `scripts/check-hfs-artifact-contract.sh` 直接验证，避免形成第二份 pin truth。
 
-如果 Docker 可用且改动影响启动路径，继续运行：
+## 构建和本地 smoke
 
 ```bash
 scripts/build.sh
-docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -V 2>&1 | grep http_sub_module
-docker run --rm --entrypoint nginx db-all-in-one-hfs:latest -t -c /etc/nginx/nginx.conf
-scripts/run-demo.sh
+
+# NOCODB_IMAGE_REF 是兼容别名；新调用使用 NOCODB_SOURCE_REF。
+NOCODB_SOURCE_REF='nocodb/nocodb:<tag>@sha256:<digest>' \
+scripts/build.sh db-all-in-one-hfs:test
+
+NOCODB_ARTIFACT_MANIFEST_URL='https://<approved-dist-host>/db-all-in-one-hfs/release/manifest.json' \
+NOCODB_ARTIFACT_SLOT='release' \
+scripts/run-demo.sh db-all-in-one-hfs:test
 scripts/smoke.sh http://localhost:7860
 ```
+
+Docker build 仍可能下载 Ubuntu/MySQL APT 内容。`run-demo` 会删除同名容器 `db-aio-hfs-demo`、复用 `db-hfs-persist` volume，并通过 HTTPS 下载 manifest/archive；不要把它用于真实数据库、真实 artifact endpoint 或未备份的本地数据。Docker build/run/smoke 不是静态检查的一部分。
+
+## Artifact producer 与 consumer
+
+- Producer：`publish-nocodb-artifact.yml` 在明确确认后拉取 Dockerfile 的 immutable `NOCODB_SOURCE_REF`，导出 `rootfs/` archive；先 readback archive，再 manifest-last。tag 的历史 archive 由 GitHub Release 保存。
+- Consumer：`docker/nocodb_bootstrap.py` 在 entrypoint 的 MySQL 初始化之前使用 `NOCODB_ARTIFACT_MANIFEST_URL` 下载一次 manifest 和其中唯一 archive，校验 source ref、已固化的 wrapper Git SHA、size、SHA-256 和布局；不接受 direct archive、目录扫描或 fallback。
+- Wrapper deploy：`scripts/export-space-bundle.sh <empty-dir>` 只导出 allowlisted Pattern A wrapper，将完整 Git SHA 固化为导出 Dockerfile 的 `WRAPPER_SOURCE_REF`，并生成相同 SHA 的 `BUILD_SOURCE.json`。它拒绝 dirty Git worktree，且不上传任何内容。
+
+在修改 bootstrap、archive schema、pin 或 exporter 时，必须同步修改 `Dockerfile`、`docker/entrypoint.sh`、`docker/nocodb.sh`、`docker/nocodb_bootstrap.py`、artifact contract tests、`hfs-dev.toml`、Space/deployment docs 和 workflow readback。
+
+## 运行时不变量
+
+- Nginx `7860` 是唯一公网入口；NocoDB `8080`、ops-service `8081`、MySQL/Redis 只在 `127.0.0.1`。
+- `/data` 只存普通持久文件。MySQL datadir 必须为 `/home/user/mysql`，Redis 为 `/home/user/redis`；不要在 FUSE mount 上使用 InnoDB redo/RDB。
+- 下载 runtime 位于 `/home/user/run/nocodb-runtime`，不是 `/data`，启动失败不能污染数据库持久化面。
+- `mysql-backup.sh` 使用新文件/读取/删除，而不依赖 tmp+rename；恢复按最新到最旧可读 dump。
+- `ops-service` 只读并只使用 Python 标准库。新增 endpoint 不得泄露 artifact URL、Settings、token、password、JWT、generated secret 或完整环境。
+
+## 变更清单
+
+- 修改端口/route：同步 `Dockerfile`、README、Nginx、Supervisor、entrypoint、healthcheck、smoke 与文档。
+- 修改 Secret/Variable：更新 `.env.example`（只键名）、`hfs-dev.toml`、entrypoint、ops safe keys、配置/部署/runbook 文档和 ignore rules。
+- 修改 MySQL/Redis/backup：保留容器本地 datadir、`/data/backups` 逻辑恢复语义；只能在隔离环境验证 restart/restore。
+- 修改 artifact：保持 tag+digest、archive 名含 immutable ref、readback before manifest、manifest-only consumer、no fallback。
+
+不要在仓库中新增真正的 `.env`、runtime config、archive、dump、cache、credential 或 `local/` 资料。

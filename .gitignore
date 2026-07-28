@@ -1,10 +1,27 @@
 .DS_Store
 **/__pycache__/
 *.pyc
-/.env.local
+
+# Local deployment ledger and restricted evidence; templates are safe to track.
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+config.toml
 /local/
 **/local/
-.env.*.local
+
+# Runtime-generated data, database exports, artifact downloads, and caches.
+/data/
+/backups/
+*.sql
+*.sql.gz
+*.tar.gz
+.cache/
+**/.cache/
+
+# Credentials and local key material.
 *.secret
 *.key
 *.pem

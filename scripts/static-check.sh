@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== Shell syntax check ==="
+printf '%s\n' '=== Shell syntax check ==='
 shell_files=(
   docker/entrypoint.sh
   docker/healthcheck.sh
@@ -11,21 +11,29 @@ shell_files=(
   scripts/run-demo.sh
   scripts/smoke.sh
   scripts/static-check.sh
+  scripts/export-space-bundle.sh
+  scripts/check-hfs-artifact-contract.sh
 )
 bash -n "${shell_files[@]}"
 
 if command -v shellcheck >/dev/null 2>&1; then
-  echo "=== ShellCheck ==="
+  printf '%s\n' '=== ShellCheck ==='
   shellcheck "${shell_files[@]}"
 else
-  echo "=== ShellCheck ==="
-  echo "  shellcheck not found; skipping optional shell lint."
+  printf '%s\n' '=== ShellCheck ==='
+  printf '%s\n' '  shellcheck not found; skipping optional shell lint.'
 fi
 
-echo "=== Python syntax check ==="
-python3 -m py_compile docker/ops_service.py
+printf '%s\n' '=== Python syntax check ==='
+pycache_dir=$(mktemp -d)
+trap 'rm -rf "${pycache_dir}"' EXIT
+PYTHONPYCACHEPREFIX="${pycache_dir}" python3 -m py_compile \
+  docker/ops_service.py \
+  docker/nocodb_bootstrap.py \
+  scripts/test_nocodb_bootstrap.py \
+  scripts/test_space_export.py
 
-echo "=== MySQL container config check ==="
+printf '%s\n' '=== MySQL container config check ==='
 python3 - <<'PY'
 from configparser import ConfigParser
 from pathlib import Path
@@ -49,12 +57,18 @@ for option, expected_value in expected.items():
     print(f"  {option}={value.strip()}")
 PY
 
-echo "=== Whitespace check ==="
+printf '%s\n' '=== HFS artifact contract check ==='
+scripts/check-hfs-artifact-contract.sh
+
+printf '%s\n' '=== Space exporter dynamic check ==='
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/test_space_export.py
+
+printf '%s\n' '=== Whitespace check ==='
 if git diff --check && git diff --cached --check; then
-  echo "  No whitespace issues."
+  printf '%s\n' '  No whitespace issues.'
 else
-  echo "  Whitespace check failed."
+  printf '%s\n' '  Whitespace check failed.'
   exit 1
 fi
 
-echo "All static checks passed."
+printf '%s\n' 'All static checks passed.'

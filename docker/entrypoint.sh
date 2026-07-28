@@ -24,6 +24,8 @@ log() {
 : "${OPS_PORT:=8081}"
 : "${OPS_TOKEN:=}"
 : "${REDIS_PORT:=6379}"
+: "${NOCODB_ARTIFACT_MANIFEST_URL:=}"
+: "${NOCODB_ARTIFACT_SLOT:=}"
 
 # Runtime state must stay on container-local disk. HF Spaces bucket volumes
 # mounted at /data are FUSE-backed object storage: they cannot host unix
@@ -36,13 +38,19 @@ log() {
 # restored from the latest logical backup on every boot.
 RUN_DIR="/home/user/run"
 
-BUILD_NOCODB_IMAGE_REF_FILE="/usr/local/share/db-aio-hfs/nocodb-image-ref"
-if [ -r "${BUILD_NOCODB_IMAGE_REF_FILE}" ]; then
-  NOCODB_IMAGE_REF="$(tr -d '\r\n' < "${BUILD_NOCODB_IMAGE_REF_FILE}")"
+BUILD_NOCODB_SOURCE_REF_FILE="/usr/local/share/db-aio-hfs/nocodb-source-ref"
+BUILD_WRAPPER_SOURCE_REF_FILE="/usr/local/share/db-aio-hfs/wrapper-source-ref"
+if [ -r "${BUILD_NOCODB_SOURCE_REF_FILE}" ]; then
+  NOCODB_SOURCE_REF="$(tr -d '\r\n' < "${BUILD_NOCODB_SOURCE_REF_FILE}")"
 fi
-: "${NOCODB_IMAGE_REF:=unknown}"
+if [ -r "${BUILD_WRAPPER_SOURCE_REF_FILE}" ]; then
+  NOCODB_WRAPPER_SOURCE_REF="$(tr -d '\r\n' < "${BUILD_WRAPPER_SOURCE_REF_FILE}")"
+fi
+: "${NOCODB_SOURCE_REF:=unknown}"
+: "${NOCODB_WRAPPER_SOURCE_REF:=unknown}"
+NOCODB_RUNTIME_DIR="${RUN_DIR}/nocodb-runtime"
 
-export DATA_DIR RUN_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_IMAGE_REF
+export DATA_DIR RUN_DIR MYSQL_DATABASE MYSQL_USER NC_PORT PORT NC_DISABLE_TELE OPS_PORT OPS_TOKEN REDIS_PORT NC_DEFAULT_LOCALE NOCODB_SOURCE_REF NOCODB_WRAPPER_SOURCE_REF NOCODB_RUNTIME_DIR NOCODB_ARTIFACT_SLOT
 
 MYSQL_DATA_DIR="${HOME}/mysql"
 REDIS_DATA_DIR="${HOME}/redis"
@@ -80,6 +88,27 @@ validate_data_dir() {
     log "ERROR: DATA_DIR must stay /data; supervisor, nginx, MySQL socket, and healthcheck use fixed /data paths."
     return 1
   fi
+}
+
+bootstrap_nocodb_runtime() {
+  if [ -z "${NOCODB_ARTIFACT_MANIFEST_URL}" ]; then
+    log "ERROR: NOCODB_ARTIFACT_MANIFEST_URL is required; refusing to start without an explicit artifact manifest."
+    return 1
+  fi
+  if [ "${NOCODB_ARTIFACT_SLOT}" != "edge" ] && [ "${NOCODB_ARTIFACT_SLOT}" != "release" ]; then
+    log "ERROR: NOCODB_ARTIFACT_SLOT must be edge or release."
+    return 1
+  fi
+
+  # The runtime archive is cache-free and container-local. It is never written
+  # to /data, so artifact failure cannot mutate persistent application data.
+  mkdir -p "${NOCODB_RUNTIME_DIR}"
+  /usr/local/bin/db-aio-nocodb-bootstrap \
+    --manifest-url "${NOCODB_ARTIFACT_MANIFEST_URL}" \
+    --slot "${NOCODB_ARTIFACT_SLOT}" \
+    --source-ref "${NOCODB_SOURCE_REF}" \
+    --wrapper-source-ref "${NOCODB_WRAPPER_SOURCE_REF}" \
+    --runtime-dir "${NOCODB_RUNTIME_DIR}"
 }
 
 sql_quote() {
@@ -344,6 +373,7 @@ main() {
   log "=========================================="
 
   validate_data_dir
+  bootstrap_nocodb_runtime
 
   # Persistent plain files on /data (volume-safe: create/read/delete only)
   mkdir -p "${NOCODB_DATA_DIR}" "${DATA_DIR}/config" "${DATA_DIR}/logs" "${BACKUP_DIR}"
@@ -362,7 +392,9 @@ main() {
 
   log "  MySQL database : ${MYSQL_DATABASE}"
   log "  MySQL user     : ${MYSQL_USER}"
-  log "  NocoDB image   : ${NOCODB_IMAGE_REF}"
+  log "  NocoDB source  : ${NOCODB_SOURCE_REF}"
+  log "  Wrapper source : ${NOCODB_WRAPPER_SOURCE_REF}"
+  log "  Artifact slot  : ${NOCODB_ARTIFACT_SLOT}"
   log "  NocoDB port    : ${PORT}"
   log "  Default locale : ${NC_DEFAULT_LOCALE}"
   log "  OPS port       : ${OPS_PORT}"
@@ -422,7 +454,9 @@ main() {
     write_shell_env "DATA_DIR" "${DATA_DIR}"
     write_shell_env "RUN_DIR" "${RUN_DIR}"
     write_shell_env "NC_DEFAULT_LOCALE" "${NC_DEFAULT_LOCALE}"
-    write_shell_env "NOCODB_IMAGE_REF" "${NOCODB_IMAGE_REF}"
+    write_shell_env "NOCODB_SOURCE_REF" "${NOCODB_SOURCE_REF}"
+    write_shell_env "NOCODB_WRAPPER_SOURCE_REF" "${NOCODB_WRAPPER_SOURCE_REF}"
+    write_shell_env "NOCODB_ARTIFACT_SLOT" "${NOCODB_ARTIFACT_SLOT}"
     [ -n "${NC_SITE_URL}" ] && write_shell_env "NC_SITE_URL" "${NC_SITE_URL}"
   } > "${DATA_DIR}/config/supervisor.env"
   chmod 600 "${DATA_DIR}/config/supervisor.env"

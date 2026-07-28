@@ -10,17 +10,20 @@ pinned: false
 
 # DB-all-in-one-HFS
 
-面向 **Hugging Face Docker Space** 的 MySQL 9.7 LTS + NocoDB 单容器 Demo 工程。
+面向 **Hugging Face Docker Space** 的 MySQL 9.7 LTS + NocoDB 单容器 Demo 工程。它把 NocoDB、MySQL、Redis、Nginx 和一个只读 `ops-service` 收敛到同一个容器中，用于数据库可视化管理和轻量 PoC。
 
-它把 NocoDB、MySQL、Redis、Nginx 和一个只读 `ops-service` 收敛到同一个容器中，用于在 HF Space 上演示数据库可视化管理和轻量 PoC。
+> 该工程不是生产部署方案。生产环境应使用独立的 MySQL 服务，并补齐高可用、备份、鉴权、监控、容量规划和正式运维流程。
 
-> 该工程不是生产部署方案。生产环境应使用独立的 MySQL 服务，并补齐高可用、备份、鉴权、监控和容量规划。
+## HFS v2 定位
 
-## HFS 范式定位
+本仓库是 **Pattern A / HFS Port Repository**：仓库根目录是 GitHub 维护根和 Space wrapper root，而不是产品源码镜像。NocoDB runtime 走 **artifact** 车道：
 
-本仓库属于 **HFS Port Repository**：仓库根目录同时是 GitHub 维护根和 Hugging Face Space root。不要把 Space 文件迁入 `cloud/hfs/`；`cloud/hfs/` 只适用于自研产品仓的 HFS Deployment Adapter。
+1. 受确认的发布工作流从 `Dockerfile` 的 `NOCODB_SOURCE_REF`（tag + digest）导出 rootfs archive；tag 发布进入 GitHub Release，`edge`/`release` slot 保留当前 archive。
+2. 上传 archive 后必须读回并核验 SHA-256，最后才写 slot 的 `manifest.json`。
+3. Space 启动仅读取 `NOCODB_ARTIFACT_MANIFEST_URL` 指定的一个 manifest，校验 slot、上游 ref、wrapper commit、文件名、大小、SHA-256 和 rootfs 布局，再下载并解包到容器本地运行目录。
+4. 缺 manifest、URL、slot、archive、校验、平台或布局时直接非零退出；不会扫描目录、改用旧 rootfs 或回退至 OCI build-stage runtime。
 
-Runtime 获取模式属于 **artifact-at-build-time**：镜像 build 阶段安装 MySQL APT 包，并从官方 NocoDB OCI image 复制其原生 runtime。Ubuntu、MySQL package 和 NocoDB image 默认值均使用经过审计的不可变 pin。
+`/data` 仍只存 NocoDB 普通文件、配置、日志和 MySQL 逻辑备份。MySQL (`/home/user/mysql`)、Redis (`/home/user/redis`) 和下载的 NocoDB runtime (`/home/user/run/nocodb-runtime`) 均留在容器本地；不要把 MySQL 或 Redis datadir 放到 `/data` 的 FUSE bucket mount。
 
 ## 文档入口
 
@@ -32,7 +35,7 @@ Runtime 获取模式属于 **artifact-at-build-time**：镜像 build 阶段安�
 
 ## 组件布局
 
-容器运行用户为 UID `1000`。`tini` 作为 PID 1，入口脚本完成初始化后交给 `supervisord` 管理进程，Nginx 监听 HF Space 需要的 `7860`：
+容器运行用户为 UID `1000`。`tini` 作为 PID 1，入口脚本先完成 fail-closed runtime bootstrap，再交给 `supervisord` 管理进程；Nginx 监听 HF Space 需要的 `7860`：
 
 ```text
 nginx:7860
@@ -42,65 +45,43 @@ nginx:7860
   └─ Redis:6379
 ```
 
-关键设计：
+- 只有 Nginx `7860` 对外；MySQL、Redis、NocoDB 和 `ops-service` 只绑定 `127.0.0.1`。
+- `ops-service` 只读；认证后 `/_ops/provenance` 返回已验证 artifact 的无密身份信息。
+- `/data` 持久化普通文件和逻辑备份；MySQL 的跨重启恢复从 `/data/backups` 的最新可读 dump 开始，损坏最新 dump 会尝试较早版本。
 
-- 只有 Nginx `7860` 对外；MySQL、Redis、NocoDB 和 `ops-service` 只绑定 `127.0.0.1`
-- NocoDB 使用 MySQL 作为业务数据库，使用 Redis 作为缓存层
-- `ops-service` 提供只读诊断面，外部路径为 `/_ops/`
-- `/data` 持久化普通文件（NocoDB 数据、配置、日志、MySQL 逻辑备份）；MySQL/Redis 运行数据在容器本地 `/home/user`，每次启动自动从最新逻辑备份恢复
-- 首次启动自动生成缺省 secret，并持久化到 `/data/config/generated.env`
+## 本地构建和运行
 
-## 本地运行
+构建只生成基础设施 wrapper 镜像，不下载或嵌入 NocoDB 产品 runtime：
 
 ```bash
-# 构建默认镜像 db-all-in-one-hfs:latest
+scripts/static-check.sh
 scripts/build.sh
 
-# 使用 named volume db-hfs-persist 运行 demo
+# 显式选择已发布的 manifest 和 slot；run-demo 保留 db-hfs-persist，
+# 但会替换同名容器。
+NOCODB_ARTIFACT_MANIFEST_URL='https://<approved-dist-host>/db-all-in-one-hfs/release/manifest.json' \
+NOCODB_ARTIFACT_SLOT='release' \
 scripts/run-demo.sh
 
-# 检查公开健康端点和 NocoDB 首页
 scripts/smoke.sh http://localhost:7860
 ```
 
-启动后访问：
+不要把真实 URL 中的 credential、Space Secret 或 `/data` 内容写入仓库、日志或文档。`NOCODB_ARTIFACT_MANIFEST_URL` 必须是无凭据 HTTPS URL；本地 `.env` 使用 `.env.example` 作为无值键名模板且受 `.gitignore` 保护。
 
-- NocoDB UI: <http://localhost:7860/>
-- Nginx 健康检查: <http://localhost:7860/nginx-health>
-- 综合健康检查: <http://localhost:7860/healthz>
-- Ops 诊断: <http://localhost:7860/_ops/health>（需 `OPS_TOKEN`）
+## Space Settings
 
-如果需要远程或本地稳定访问 `/_ops/`，建议显式设置 `OPS_TOKEN`。不设置时入口脚本会生成 token，但该 token 只保存在 `/data/config/generated.env`，不会通过公开接口返回。
+在候选或已获批准的 Space 设置以下**键名**：
 
-## 可复现构建
+- Variables：`NC_SITE_URL`、`NC_DEFAULT_LOCALE`、`NOCODB_ARTIFACT_MANIFEST_URL`、`NOCODB_ARTIFACT_SLOT`（只允许 `edge` 或 `release`）。
+- Secrets：`MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`NC_AUTH_JWT_SECRET`、`OPS_TOKEN`。
 
-默认构建当前固定为 Ubuntu 24.04、MySQL 9.7.1 LTS 和 NocoDB `2026.07.0` 的不可变候选。更新上游版本时必须同时更新 tag/version 和 digest：
+`HF_TOKEN` 和 `GH_TOKEN` 是本地/CI 控制面凭据，只登记在 `hfs-dev.toml` 的 `local_only`，绝不推送到 Space Settings。
 
-```bash
-UBUNTU_VERSION='24.04@sha256:<digest>' \
-MYSQL_SERVER_PACKAGE='mysql-server=<version>' \
-MYSQL_CLIENT_PACKAGE='mysql-client=<version>' \
-NOCODB_IMAGE_REF='nocodb/nocodb:<tag>@sha256:<digest>' \
-scripts/build.sh db-all-in-one-hfs:<tag>
-```
+## 发布和回退边界
 
-NocoDB 从 `2026.06.1` 起停止发布 standalone executable；本仓库因此不再下载 `Noco-linux-*`，而是使用带 digest 的官方 OCI image 作为 build-time artifact source。
+`publish-nocodb-artifact.yml` 与 `deploy-hf-space.yml` 都只能手动触发，且需要输入精确确认字符串。它们不会 force-push、删除 bucket/Space/Settings、重启 Space、迁移数据库或恢复数据；所有远端写入后必须读回指定对象。运行前还需由 release owner、data owner 确认当前 Space ref、实际 `/data` mount、artifact 下载面、备份/RPO 和候选验证窗口。
 
-## Hugging Face Space 部署
-
-1. 新建 Space，SDK 选择 **Docker**。
-2. 推送本仓库文件到 Space 根目录。
-3. 建议挂载 volume（例如 HF bucket）到 `/data`，否则重建后 NocoDB 数据、MySQL 逻辑备份和生成 secret 会丢失。bucket 只承载普通文件；MySQL 运行数据按设计保持在容器本地，通过逻辑备份恢复。
-4. 在 Space Settings -> Variables 设置：
-   - `NC_SITE_URL`（可选，设置为 Space 公网 URL 时可改善分享链接）
-   - `NC_DEFAULT_LOCALE`（可选，默认 `zh-Hans`；通过 wrapper 初始化 NocoDB UI 默认语言）
-5. 在 Space Settings -> Secrets 设置：
-   - `MYSQL_ROOT_PASSWORD`（可选，不设则自动生成）
-   - `MYSQL_PASSWORD`（可选，不设则自动生成）
-   - `NC_AUTH_JWT_SECRET`（可选，不设则自动生成）
-   - `OPS_TOKEN`（推荐设置，用于 `/_ops/` 鉴权）
-
-不要把真实 secret 提交到 Git。更多配置项见 [配置参考](./docs/configuration.md)。
+历史 archive 的回退从 GitHub Release 的同一字节资产重新发布为 slot manifest；不得通过重置 `/data`、删除备份或直接修改运行中数据库实现回退。
 
 ## 许可证
 

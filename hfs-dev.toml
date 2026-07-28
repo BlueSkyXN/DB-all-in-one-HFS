@@ -1,61 +1,31 @@
-schema_version = 2
-standard = "hfs-dev"
-pattern = "A"
-runtime_mode = "artifact-at-build-time"
-space_root_mode = "repo-root"
-hfs_dir = "."
-public_port = 7860
-canonical_health_endpoint = "/healthz"
-release_pin_required = true
-required_files = [
-  "README.md",
-  "Dockerfile",
-  "docker/entrypoint.sh",
-  "docker/healthcheck.sh",
-  "docker/mysql-backup.sh",
-  "docker/nocodb.sh",
-  "docker/nginx.conf",
-  "docker/supervisord.conf",
-  "docker/ops_service.py",
-  "scripts/static-check.sh",
-  "scripts/smoke.sh",
-  "hfs-dev.toml",
+standard = "2.0"
+project = "db-all-in-one-hfs"
+space = "BlueSkyXN/db-all-in-one-hfs"
+sovereignty = "port"
+lane = "artifact"
+version_source = "tag"
+
+# These keys are local deployment controls only. They must never be copied to
+# Space Settings, artifact manifests, archives, or generated runtime files.
+local_only = ["HF_TOKEN", "GH_TOKEN"]
+
+# Values remain in the ignored local ledger or Space Settings; this registry
+# records names and relationships only.
+secrets = [
+  "MYSQL_ROOT_PASSWORD",
+  "MYSQL_PASSWORD",
+  "NC_AUTH_JWT_SECRET",
+  "OPS_TOKEN",
+]
+variables = [
+  "NC_SITE_URL",
+  "NC_DEFAULT_LOCALE",
+  "NOCODB_ARTIFACT_MANIFEST_URL",
+  "NOCODB_ARTIFACT_SLOT",
 ]
 
-[[release_pins]]
-name = "UBUNTU_VERSION"
-type = "image_ref"
-source = "Docker build arg"
-current_dev_default = "24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90"
-required_for_release = true
-dev_mutable_default_allowed = false
-release_requires_digest = true
-description = "Ubuntu 24.04 LTS base image pinned by OCI index digest."
+dist_bucket = "hfs-dist"
 
-[[release_pins]]
-name = "MYSQL_SERVER_PACKAGE"
-type = "package_version"
-source = "Docker build arg"
-current_dev_default = "mysql-server=9.7.1-1ubuntu24.04"
-required_for_release = true
-dev_mutable_default_allowed = false
-description = "Oracle MySQL 9.7 LTS server package pinned to the audited security patch release."
-
-[[release_pins]]
-name = "MYSQL_CLIENT_PACKAGE"
-type = "package_version"
-source = "Docker build arg"
-current_dev_default = "mysql-client=9.7.1-1ubuntu24.04"
-required_for_release = true
-dev_mutable_default_allowed = false
-description = "Oracle MySQL 9.7 LTS client package aligned with the server package."
-
-[[release_pins]]
-name = "NOCODB_IMAGE_REF"
-type = "image_ref"
-source = "Docker build arg and multi-stage OCI source"
-current_dev_default = "nocodb/nocodb:2026.07.0@sha256:fb359673c42fb69058e880710e446f8039afeb64632ca8d8dfcfdcc407ebb058"
-required_for_release = true
-dev_mutable_default_allowed = false
-release_requires_digest = true
-description = "Official NocoDB OCI image pinned by release tag and multi-architecture digest."
+# Product pins, archive schema, layout assertions, bootstrap behavior, and
+# persistence invariants live in Dockerfile, docker/nocodb_bootstrap.py,
+# scripts/check-hfs-artifact-contract.sh, and their documented contracts.
