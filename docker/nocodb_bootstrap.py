@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 import re
 import shutil
 import subprocess
@@ -178,10 +179,32 @@ def safe_member(member: tarfile.TarInfo) -> None:
         # Tar hard-link names are archive-root relative, unlike symbolic links.
         normalized_rootfs_path(PurePosixPath(member.linkname), member_name=member.name)
     if member.issym():
-        # Relative links with ../ are legitimate in a Linux rootfs. Resolve them
-        # from the member's parent and reject only links that leave rootfs.
         target = PurePosixPath(member.linkname)
-        normalized_rootfs_path(path.parent / target, member_name=member.name)
+        if target.is_absolute():
+            # OCI rootfs archives commonly contain absolute links. Treat their
+            # target as rootfs-relative; extraction rewrites them so the
+            # relocated runtime cannot resolve into the wrapper host root.
+            normalized_rootfs_path(
+                PurePosixPath("rootfs") / target.relative_to("/"),
+                member_name=member.name,
+            )
+        else:
+            # Relative links with ../ are legitimate in a Linux rootfs. Resolve
+            # them from the member's parent and reject links that leave rootfs.
+            normalized_rootfs_path(path.parent / target, member_name=member.name)
+
+
+def rewrite_absolute_symlink(member: tarfile.TarInfo) -> None:
+    if not member.issym():
+        return
+    target = PurePosixPath(member.linkname)
+    if not target.is_absolute():
+        return
+    relocated_target = PurePosixPath("rootfs") / target.relative_to("/")
+    member.linkname = posixpath.relpath(
+        relocated_target.as_posix(),
+        start=PurePosixPath(member.name).parent.as_posix(),
+    )
 
 
 def extract_artifact(archive: Path, staging: Path) -> Path:
@@ -192,6 +215,7 @@ def extract_artifact(archive: Path, staging: Path) -> Path:
                 fail("artifact archive is empty")
             for member in members:
                 safe_member(member)
+                rewrite_absolute_symlink(member)
             tar.extractall(staging, members=members, filter="data")
     except (OSError, tarfile.TarError) as exc:
         fail(f"artifact extraction failed: {exc}")

@@ -183,6 +183,12 @@ class NocoDBBootstrapContractTest(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(text, encoding="utf-8")
             node.chmod(0o755)
+            fdisk = source / "rootfs" / "usr" / "bin" / "fdisk"
+            fdisk.parent.mkdir(parents=True, exist_ok=True)
+            fdisk.write_text("fdisk", encoding="utf-8")
+            sbin_fdisk = source / "rootfs" / "sbin" / "fdisk"
+            sbin_fdisk.parent.mkdir(parents=True, exist_ok=True)
+            sbin_fdisk.symlink_to("/usr/bin/fdisk")
 
             archive = directory / "nocodb-runtime-v1.tar.gz"
             with tarfile.open(archive, "w:gz") as tar:
@@ -190,6 +196,10 @@ class NocoDBBootstrapContractTest(unittest.TestCase):
             staging = directory / "staging"
             staging.mkdir()
             rootfs = bootstrap.extract_artifact(archive, staging)
+            extracted_link = rootfs / "sbin" / "fdisk"
+            self.assertTrue(extracted_link.is_symlink())
+            self.assertEqual(os.readlink(extracted_link), "../usr/bin/fdisk")
+            self.assertEqual(extracted_link.resolve(), (rootfs / "usr" / "bin" / "fdisk").resolve())
             manifest = self.manifest(
                 {
                     "name": archive.name,
