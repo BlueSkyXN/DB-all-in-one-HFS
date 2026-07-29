@@ -89,7 +89,7 @@ for required in (
     "gh release download",
     "sha256sum -c -",
     "huggingface_hub==1.5.0",
-    "click==8.3.1",
+    "click==8.3.3",
     "python -m huggingface_hub.cli.hf --help",
     "python -m huggingface_hub.cli.hf buckets --help",
 ):
@@ -106,7 +106,7 @@ for required in (
     "hfs-dev.candidate.toml", "candidate Space must be private",
     "refusing non-wrapper Space tree", "full Space tree readback",
     "huggingface_hub==1.5.0",
-    "click==8.3.1",
+    "click==8.3.3",
     "python -m huggingface_hub.cli.hf --help",
     "python -m huggingface_hub.cli.hf download --help",
 ):
