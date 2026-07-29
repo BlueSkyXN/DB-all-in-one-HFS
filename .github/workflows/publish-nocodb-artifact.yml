@@ -42,7 +42,9 @@ jobs:
       - name: Install pinned Hugging Face CLI
         run: |
           python -m pip install --disable-pip-version-check "huggingface_hub==1.5.0" "click==8.3.1"
-          hf version
+          python -m huggingface_hub.cli.hf version
+          python -m huggingface_hub.cli.hf --help >/dev/null
+          python -m huggingface_hub.cli.hf buckets --help >/dev/null
 
       - name: Validate publication inputs
         shell: bash
@@ -149,8 +151,10 @@ jobs:
           manifest_url="${HFS_DIST_BASE_URL%/}/db-all-in-one-hfs/${target}/manifest.json"
           case "${artifact_url}" in https://*) ;; *) exit 1 ;; esac
           mkdir -p readback
-          hf buckets cp "dist/${artifact_name}" "${artifact_uri}"
-          hf buckets cp "${artifact_uri}" "readback/${artifact_name}"
+          python -m huggingface_hub.cli.hf buckets cp \
+            "dist/${artifact_name}" "${artifact_uri}"
+          python -m huggingface_hub.cli.hf buckets cp \
+            "${artifact_uri}" "readback/${artifact_name}"
           printf '%s  %s\n' "${{ steps.artifact.outputs.sha256 }}" "readback/${artifact_name}" | sha256sum -c -
           SOURCE_REF="${{ steps.artifact.outputs.source_ref }}" \
           WRAPPER_SOURCE_REF="${{ steps.artifact.outputs.wrapper_source_ref }}" \
@@ -176,7 +180,8 @@ jobs:
               },
           }, sort_keys=True, separators=(",", ":")))
           PY
-          hf buckets cp manifest.json "${manifest_uri}"
-          hf buckets cp "${manifest_uri}" readback/manifest.json
+          python -m huggingface_hub.cli.hf buckets cp manifest.json "${manifest_uri}"
+          python -m huggingface_hub.cli.hf buckets cp \
+            "${manifest_uri}" readback/manifest.json
           cmp manifest.json readback/manifest.json
           printf 'Published and read back manifest: %s\n' "${manifest_url}"
