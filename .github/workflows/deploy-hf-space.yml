@@ -7,7 +7,7 @@ on:
         description: "Explicit HFS manifest profile"
         required: true
         type: choice
-        options: [candidate, production]
+        options: [candidate, primary]
       confirmation:
         description: "Type DEPLOY_DB_AIO_HFS to authorize this wrapper upload"
         required: true

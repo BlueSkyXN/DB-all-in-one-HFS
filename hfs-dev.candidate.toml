@@ -1,9 +1,13 @@
-standard = "2.0"
+standard = "2.1"
 project = "db-all-in-one-hfs"
 space = "BlueSkyXN/db-all-in-one-hfs-v2-candidate"
 sovereignty = "port"
 lane = "artifact"
 version_source = "tag"
+project_class = "preview"
+target_role = "candidate"
+env_file = "local/hfs-targets/candidate.env"
+secret_files = []
 
 local_only = ["HF_TOKEN", "GH_TOKEN"]
 secrets = [

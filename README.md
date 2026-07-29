@@ -14,9 +14,11 @@ pinned: false
 
 > 该工程不是生产部署方案。生产环境应使用独立的 MySQL 服务，并补齐高可用、备份、鉴权、监控、容量规划和正式运维流程。
 
-## HFS v2 定位
+## HFS v2.1 Preview 定位
 
 本仓库是 **Pattern A / HFS Port Repository**：仓库根目录是 GitHub 维护根和 Space wrapper root，而不是产品源码镜像。NocoDB runtime 走 **artifact** 车道：
+
+`hfs-dev.toml` 将项目登记为 `project_class="preview"`、canonical target `target_role="primary"`。Preview 可直接修改 canonical Space 并在写后 readback；任何 Secret 都必须先保存在 ignored plaintext `.env`。`hfs-dev.candidate.toml` 只用于高风险可选验证，独立账本为 `local/hfs-targets/candidate.env`。
 
 1. 受确认的发布工作流从 `Dockerfile` 的 `NOCODB_SOURCE_REF`（tag + digest）导出 rootfs archive；tag 发布进入 GitHub Release，`edge`/`release` slot 保留当前 archive。
 2. 上传 archive 后必须读回并核验 SHA-256，最后才写 slot 的 `manifest.json`。

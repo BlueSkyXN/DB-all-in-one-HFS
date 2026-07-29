@@ -1,6 +1,6 @@
 # 配置参考
 
-配置分为 Space runtime Settings、Docker build pins 与本地控制面账本。`hfs-dev.toml` 只登记键名和关系；真实值只能留在忽略的本地 `.env` 或 Space Secrets，绝不进入 manifest、archive、wrapper bundle、日志或文档。
+配置分为 Space runtime Settings、Docker build pins 与本地控制面账本。`hfs-dev.toml` 只登记键名和关系；忽略的本地明文 `.env` 是唯一事实源，Space Secrets 只是部署副本。真实值绝不进入 manifest、archive、wrapper bundle、日志或文档。
 
 ## 本地账本
 
