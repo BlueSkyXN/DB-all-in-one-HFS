@@ -95,6 +95,19 @@ for required in (
 ):
     if required not in publisher:
         raise SystemExit(f"artifact publisher missing required contract gate: {required}")
+release_step_offset = publisher.index("- name: Archive tag artifact in GitHub Release")
+release_condition_offset = publisher.index("if: inputs.target == 'release'", release_step_offset)
+release_write_offset = publisher.index('gh release upload "${RELEASE_TAG}"', release_condition_offset)
+for required in (
+    '[[ "$GITHUB_REF" == "refs/heads/main" ]]',
+    'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main',
+    '[[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]',
+    '[[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]]',
+    '[[ "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" == "$GITHUB_SHA" ]]',
+):
+    offset = publisher.find(required, release_condition_offset)
+    if offset < 0 or offset > release_write_offset:
+        raise SystemExit(f"artifact release pre-write gate missing or late: {required}")
 for forbidden in ("--clobber", "--force", "git push", "hf upload --delete"):
     if forbidden in publisher:
         raise SystemExit(f"artifact publisher contains forbidden remote mutation: {forbidden}")

@@ -22,6 +22,8 @@
 3. artifact 写入 `hfs-dist/db-all-in-one-hfs/<slot>/` 后立即读回并校验 SHA-256。
 4. 仅在 artifact readback 成功后写 `manifest.json`，随后读回逐字节比对。这是 manifest-last；失败不会扫描或回退。
 
+`release` 的首次 GitHub/Hugging Face 写入紧前会重新 fetch `origin/main`，并要求 workflow ref 为 `refs/heads/main`，checkout `HEAD`、`GITHUB_SHA`、current main 与 `release_tag` commit 全部一致。`edge` 仍保留原有独立发布语义，不要求 release tag。
+
 workflow 需要预先由 owner 配置的 `HF_TOKEN` Secret、`HFS_BUCKET_NAMESPACE` 与 `HFS_DIST_BASE_URL` Variables。它们不在 Git、`hfs-dev.toml` 或 `.env.example` 中保存值。workflow 未安装依赖；缺少 runner 上的 `hf`/`gh` CLI 时会失败关闭。
 
 `edge` 只表示当前批准的 main 构建；`release` 指向批准的 GitHub Release。回退必须从 GitHub Release 的精确 archive 重新完成 artifact-readback/manifest-last，而不是复用旧目录扫描、直接 OCI COPY 或重置数据库。

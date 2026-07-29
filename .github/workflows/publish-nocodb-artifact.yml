@@ -120,6 +120,11 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" == "$GITHUB_SHA" ]]
           gh release view "${RELEASE_TAG}" >/dev/null
           # A tag archive is historical rollback evidence: never overwrite an
           # existing asset, even when the file name happens to match.
