@@ -75,8 +75,6 @@ jobs:
           PY
           if [ "${{ inputs.target }}" = release ]; then
             test -n "${RELEASE_TAG}" || { echo 'release_tag is required for release.' >&2; exit 1; }
-            test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$(git rev-parse HEAD)" \
-              || { echo 'release_tag must resolve to the checked-out immutable commit.' >&2; exit 1; }
           fi
 
       - name: Build and verify a rootfs archive
@@ -128,6 +126,17 @@ jobs:
             echo 'refusing to overwrite an immutable GitHub Release asset.' >&2
             exit 1
           fi
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          git check-ref-format "refs/tags/${RELEASE_TAG}"
+          release_tag_ref="refs/hfs-release-validation/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            "+refs/tags/${RELEASE_TAG}:${release_tag_ref}"
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]]
+          [[ "$(git cat-file -t "$release_tag_ref")" == "tag" ]]
+          [[ "$(git rev-parse "${release_tag_ref}^{commit}")" == "$GITHUB_SHA" ]]
+          git update-ref -d "$release_tag_ref"
           gh release upload "${RELEASE_TAG}" "dist/${{ steps.artifact.outputs.artifact_name }}"
           gh release view "${RELEASE_TAG}" --json assets --jq '.assets[].name' \
             | grep -Fx "${{ steps.artifact.outputs.artifact_name }}"
