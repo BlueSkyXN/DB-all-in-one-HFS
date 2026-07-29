@@ -18,11 +18,11 @@
 `.github/workflows/publish-nocodb-artifact.yml` 只接受手动 `workflow_dispatch`。操作者必须输入 `PUBLISH_NOCODB_ARTIFACT`，并显式选择 `edge` 或 `release`：
 
 1. workflow 读取 Dockerfile 中审计过的 `NOCODB_SOURCE_REF`（tag + digest），从该不可变 OCI ref 导出 rootfs archive。
-2. archive 名包含上游 tag 和完整 wrapper commit；`release` 还要求现有 Git tag 与当前 commit 相同，并将同一字节 archive 上传到对应 GitHub Release。
+2. archive 名包含上游 tag 和完整 wrapper commit；`release` 还要求远端 annotated Git tag peel 后指向当前 commit，并将同一字节 archive 上传到对应 GitHub Release。
 3. artifact 写入 `hfs-dist/db-all-in-one-hfs/<slot>/` 后立即读回并校验 SHA-256。
 4. 仅在 artifact readback 成功后写 `manifest.json`，随后读回逐字节比对。这是 manifest-last；失败不会扫描或回退。
 
-`release` 的首次 GitHub/Hugging Face 写入紧前会重新 fetch `origin/main`，并要求 workflow ref 为 `refs/heads/main`，checkout `HEAD`、`GITHUB_SHA`、current main 与 `release_tag` commit 全部一致。`edge` 仍保留原有独立发布语义，不要求 release tag。
+`release` 的首次 GitHub/Hugging Face 写入紧前会重新 fetch `origin/main`，并把精确远端 `release_tag` fetch 到独立临时 ref。workflow 要求 ref 为 `refs/heads/main`，checkout `HEAD`、`GITHUB_SHA`、current main 与该 annotated tag peel 后的 commit 全部一致；lightweight tag 会失败关闭。`edge` 仍保留原有独立发布语义，不要求 release tag。
 
 workflow 需要预先由 owner 配置的 `HF_TOKEN` Secret、`HFS_BUCKET_NAMESPACE` 与 `HFS_DIST_BASE_URL` Variables。它们不在 Git、`hfs-dev.toml` 或 `.env.example` 中保存值。workflow 未安装依赖；缺少 runner 上的 `hf`/`gh` CLI 时会失败关闭。
 

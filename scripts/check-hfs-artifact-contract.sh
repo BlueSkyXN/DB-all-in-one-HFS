@@ -97,17 +97,33 @@ for required in (
         raise SystemExit(f"artifact publisher missing required contract gate: {required}")
 release_step_offset = publisher.index("- name: Archive tag artifact in GitHub Release")
 release_condition_offset = publisher.index("if: inputs.target == 'release'", release_step_offset)
-release_write_offset = publisher.index('gh release upload "${RELEASE_TAG}"', release_condition_offset)
-for required in (
+asset_guard_offset = publisher.index('if gh release view "${RELEASE_TAG}" --json assets', release_condition_offset)
+asset_guard_end_offset = publisher.index("          fi\n", asset_guard_offset)
+first_release_write_offset = min(
+    publisher.index('gh release upload "${RELEASE_TAG}"', release_condition_offset),
+    publisher.index("python -m huggingface_hub.cli.hf buckets cp", release_condition_offset),
+)
+required_release_gate = (
     '[[ "$GITHUB_REF" == "refs/heads/main" ]]',
-    'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main',
+    'git check-ref-format "refs/tags/${RELEASE_TAG}"',
+    'release_tag_ref="refs/hfs-release-validation/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+    'git fetch --no-tags origin',
+    '+refs/heads/main:refs/remotes/origin/main',
+    '"+refs/tags/${RELEASE_TAG}:${release_tag_ref}"',
     '[[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]',
     '[[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]]',
-    '[[ "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" == "$GITHUB_SHA" ]]',
-):
-    offset = publisher.find(required, release_condition_offset)
-    if offset < 0 or offset > release_write_offset:
+    '[[ "$(git cat-file -t "$release_tag_ref")" == "tag" ]]',
+    '[[ "$(git rev-parse "${release_tag_ref}^{commit}")" == "$GITHUB_SHA" ]]',
+    'git update-ref -d "$release_tag_ref"',
+)
+previous_offset = asset_guard_end_offset
+for required in required_release_gate:
+    offset = publisher.find(required, previous_offset + 1)
+    if offset < 0 or offset > first_release_write_offset:
         raise SystemExit(f"artifact release pre-write gate missing or late: {required}")
+    previous_offset = offset
+if 'git rev-parse "refs/tags/${RELEASE_TAG}^{commit}"' in publisher:
+    raise SystemExit("artifact release gate must not trust the checkout-local tag ref")
 for forbidden in ("--clobber", "--force", "git push", "hf upload --delete"):
     if forbidden in publisher:
         raise SystemExit(f"artifact publisher contains forbidden remote mutation: {forbidden}")
