@@ -31,8 +31,9 @@ workflow 需要预先由 owner 配置的 `HF_TOKEN` Secret、`HFS_BUCKET_NAMESPA
 `.github/workflows/deploy-hf-space.yml` 同样只能手动运行，并要求输入 `DEPLOY_DB_AIO_HFS`。它：
 
 1. 拒绝未提交工作区，导出只含 Dockerfile、Space card、manifest、`.dockerignore`、`docker/` runtime contract 和生成的 `BUILD_SOURCE.json` 的 wrapper bundle。
-2. 使用 HF CLI 上传该 bundle，不使用 credential-bearing Git URL、`git push`、force-push 或 whole-repository delete。
-3. 下载并逐字节核对 `BUILD_SOURCE.json`、Dockerfile、manifest、ignore 规则和关键 bootstrap 文件；缺完整 40 位 wrapper SHA 即失败。
+2. candidate 与 production 目标都必须已经是 private；production 还必须由 manifest 精确选择 `BlueSkyXN/db-all-in-one-hfs`，并在上传紧前重新 fetch `origin/main`，确认 workflow ref、checkout `HEAD`、`GITHUB_SHA` 与 current main 完全一致。
+3. 使用 HF CLI 上传该 bundle，不使用 credential-bearing Git URL、`git push`、force-push 或 whole-repository delete。
+4. 下载并逐字节核对 `BUILD_SOURCE.json`、Dockerfile、manifest、ignore 规则和关键 bootstrap 文件；缺完整 40 位 wrapper SHA 即失败。
 
 上传完成不代表 Space 已就绪。保持现有实例和数据不变，等待 owner 在批准的窗口中读取 Space revision/runtime provenance、`/healthz`、认证后的 `/_ops/provenance` 和业务 smoke。不要让 workflow 自动 restart 或恢复数据。
 

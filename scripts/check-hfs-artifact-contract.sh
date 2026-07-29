@@ -103,7 +103,8 @@ deployer = Path(".github/workflows/deploy-hf-space.yml").read_text(encoding="utf
 for required in (
     "workflow_dispatch", "DEPLOY_DB_AIO_HFS",
     "python -m huggingface_hub.cli.hf upload", "cmp ",
-    "hfs-dev.candidate.toml", "candidate Space must be private",
+    "hfs-dev.candidate.toml", "FORMAL_SPACE: BlueSkyXN/db-all-in-one-hfs",
+    "target Space must be private before wrapper upload",
     "refusing non-wrapper Space tree", "full Space tree readback",
     "huggingface_hub==1.5.0",
     "click==8.3.3",
@@ -112,6 +113,20 @@ for required in (
 ):
     if required not in deployer:
         raise SystemExit(f"wrapper deployer missing required contract gate: {required}")
+upload_offset = deployer.rindex("python -m huggingface_hub.cli.hf upload")
+for required in (
+    'if os.environ["HFS_TARGET"] == "production" and space_id != os.environ["FORMAL_SPACE"]:',
+    'if info.private is not True:',
+    '[[ "$GITHUB_REF" == "refs/heads/main" ]]',
+    'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main',
+    '[[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]',
+    '[[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]]',
+):
+    offset = deployer.find(required)
+    if offset < 0 or offset > upload_offset:
+        raise SystemExit(f"wrapper deployer pre-upload gate missing or late: {required}")
+if 'os.environ["HFS_TARGET"] == "candidate" and not info.private' in deployer:
+    raise SystemExit("wrapper deployer must require private visibility for production too")
 for forbidden in ("--force", "git push", "--delete", "restart_space", "factory_reboot"):
     if forbidden in deployer:
         raise SystemExit(f"wrapper deployer contains forbidden remote mutation: {forbidden}")
