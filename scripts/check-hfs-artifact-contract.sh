@@ -85,11 +85,13 @@ publisher = Path(".github/workflows/publish-nocodb-artifact.yml").read_text(enco
 for required in (
     "workflow_dispatch",
     "PUBLISH_NOCODB_ARTIFACT",
-    "hf buckets cp \"${artifact_uri}\" \"readback/${artifact_name}\"",
+    "python -m huggingface_hub.cli.hf buckets cp",
     "gh release download",
     "sha256sum -c -",
     "huggingface_hub==1.5.0",
-    "click==8.3.1",
+    "click==8.3.3",
+    "python -m huggingface_hub.cli.hf --help",
+    "python -m huggingface_hub.cli.hf buckets --help",
 ):
     if required not in publisher:
         raise SystemExit(f"artifact publisher missing required contract gate: {required}")
@@ -99,17 +101,28 @@ for forbidden in ("--clobber", "--force", "git push", "hf upload --delete"):
 
 deployer = Path(".github/workflows/deploy-hf-space.yml").read_text(encoding="utf-8")
 for required in (
-    "workflow_dispatch", "DEPLOY_DB_AIO_HFS", "hf upload", "cmp ",
+    "workflow_dispatch", "DEPLOY_DB_AIO_HFS",
+    "python -m huggingface_hub.cli.hf upload", "cmp ",
     "hfs-dev.candidate.toml", "candidate Space must be private",
     "refusing non-wrapper Space tree", "full Space tree readback",
     "huggingface_hub==1.5.0",
-    "click==8.3.1",
+    "click==8.3.3",
+    "python -m huggingface_hub.cli.hf --help",
+    "python -m huggingface_hub.cli.hf download --help",
 ):
     if required not in deployer:
         raise SystemExit(f"wrapper deployer missing required contract gate: {required}")
 for forbidden in ("--force", "git push", "--delete", "restart_space", "factory_reboot"):
     if forbidden in deployer:
         raise SystemExit(f"wrapper deployer contains forbidden remote mutation: {forbidden}")
+
+for workflow_path in (
+    ".github/workflows/deploy-hf-space.yml",
+    ".github/workflows/publish-nocodb-artifact.yml",
+):
+    workflow = Path(workflow_path).read_text(encoding="utf-8")
+    if re.search(r"(?m)^\s+hf (?:upload|download|spaces|buckets|repos)\b", workflow):
+        raise SystemExit(f"{workflow_path} must use the Hugging Face module CLI")
 
 for ignore_path in (".gitignore", ".dockerignore"):
     ignored = Path(ignore_path).read_text(encoding="utf-8")
