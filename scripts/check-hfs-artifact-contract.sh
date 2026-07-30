@@ -98,31 +98,88 @@ publisher = Path(".github/workflows/publish-nocodb-artifact.yml").read_text(enco
 for required in (
     "workflow_dispatch",
     "PUBLISH_NOCODB_ARTIFACT",
-    "hf buckets cp \"${artifact_uri}\" \"readback/${artifact_name}\"",
+    "python -m huggingface_hub.cli.hf buckets cp",
     "gh release download",
     "sha256sum -c -",
     "huggingface_hub==1.5.0",
-    "click==8.3.1",
+    "click==8.3.3",
+    "python -m huggingface_hub.cli.hf --help",
+    "python -m huggingface_hub.cli.hf buckets --help",
 ):
     if required not in publisher:
         raise SystemExit(f"artifact publisher missing required contract gate: {required}")
+release_step_offset = publisher.index("- name: Archive tag artifact in GitHub Release")
+release_condition_offset = publisher.index("if: inputs.target == 'release'", release_step_offset)
+asset_guard_offset = publisher.index('if gh release view "${RELEASE_TAG}" --json assets', release_condition_offset)
+asset_guard_end_offset = publisher.index("          fi\n", asset_guard_offset)
+first_release_write_offset = min(
+    publisher.index('gh release upload "${RELEASE_TAG}"', release_condition_offset),
+    publisher.index("python -m huggingface_hub.cli.hf buckets cp", release_condition_offset),
+)
+required_release_gate = (
+    '[[ "$GITHUB_REF" == "refs/heads/main" ]]',
+    'git check-ref-format "refs/tags/${RELEASE_TAG}"',
+    'release_tag_ref="refs/hfs-release-validation/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+    'git fetch --no-tags origin',
+    '+refs/heads/main:refs/remotes/origin/main',
+    '"+refs/tags/${RELEASE_TAG}:${release_tag_ref}"',
+    '[[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]',
+    '[[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]]',
+    '[[ "$(git cat-file -t "$release_tag_ref")" == "tag" ]]',
+    '[[ "$(git rev-parse "${release_tag_ref}^{commit}")" == "$GITHUB_SHA" ]]',
+    'git update-ref -d "$release_tag_ref"',
+)
+previous_offset = asset_guard_end_offset
+for required in required_release_gate:
+    offset = publisher.find(required, previous_offset + 1)
+    if offset < 0 or offset > first_release_write_offset:
+        raise SystemExit(f"artifact release pre-write gate missing or late: {required}")
+    previous_offset = offset
+if 'git rev-parse "refs/tags/${RELEASE_TAG}^{commit}"' in publisher:
+    raise SystemExit("artifact release gate must not trust the checkout-local tag ref")
 for forbidden in ("--clobber", "--force", "git push", "hf upload --delete"):
     if forbidden in publisher:
         raise SystemExit(f"artifact publisher contains forbidden remote mutation: {forbidden}")
 
 deployer = Path(".github/workflows/deploy-hf-space.yml").read_text(encoding="utf-8")
 for required in (
-    "workflow_dispatch", "DEPLOY_DB_AIO_HFS", "hf upload", "cmp ",
-    "hfs-dev.candidate.toml", "candidate Space must be private",
+    "workflow_dispatch", "DEPLOY_DB_AIO_HFS",
+    "python -m huggingface_hub.cli.hf upload", "cmp ",
+    "hfs-dev.candidate.toml", "FORMAL_SPACE: BlueSkyXN/db-all-in-one-hfs",
+    "target Space must be private before wrapper upload",
     "refusing non-wrapper Space tree", "full Space tree readback",
     "huggingface_hub==1.5.0",
-    "click==8.3.1",
+    "click==8.3.3",
+    "python -m huggingface_hub.cli.hf --help",
+    "python -m huggingface_hub.cli.hf download --help",
 ):
     if required not in deployer:
         raise SystemExit(f"wrapper deployer missing required contract gate: {required}")
+upload_offset = deployer.rindex("python -m huggingface_hub.cli.hf upload")
+for required in (
+    'if os.environ["HFS_TARGET"] == "production" and space_id != os.environ["FORMAL_SPACE"]:',
+    'if info.private is not True:',
+    '[[ "$GITHUB_REF" == "refs/heads/main" ]]',
+    'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main',
+    '[[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]',
+    '[[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]]',
+):
+    offset = deployer.find(required)
+    if offset < 0 or offset > upload_offset:
+        raise SystemExit(f"wrapper deployer pre-upload gate missing or late: {required}")
+if 'os.environ["HFS_TARGET"] == "candidate" and not info.private' in deployer:
+    raise SystemExit("wrapper deployer must require private visibility for production too")
 for forbidden in ("--force", "git push", "--delete", "restart_space", "factory_reboot"):
     if forbidden in deployer:
         raise SystemExit(f"wrapper deployer contains forbidden remote mutation: {forbidden}")
+
+for workflow_path in (
+    ".github/workflows/deploy-hf-space.yml",
+    ".github/workflows/publish-nocodb-artifact.yml",
+):
+    workflow = Path(workflow_path).read_text(encoding="utf-8")
+    if re.search(r"(?m)^\s+hf (?:upload|download|spaces|buckets|repos)\b", workflow):
+        raise SystemExit(f"{workflow_path} must use the Hugging Face module CLI")
 
 for ignore_path in (".gitignore", ".dockerignore"):
     ignored = Path(ignore_path).read_text(encoding="utf-8")
