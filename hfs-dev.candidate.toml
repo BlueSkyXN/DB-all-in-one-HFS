@@ -6,6 +6,8 @@ lane = "artifact"
 version_source = "tag"
 project_class = "preview"
 target_role = "candidate"
+space_visibility = "protected"
+bucket_visibility = "private"
 env_file = "local/hfs-targets/candidate.env"
 secret_files = []
 

@@ -37,11 +37,12 @@ jobs:
 
       - name: Install pinned Hugging Face CLI
         run: |
-          python -m pip install --disable-pip-version-check "huggingface_hub==1.5.0" "click==8.3.3"
+          python -m pip install --disable-pip-version-check "huggingface_hub==1.25.1" "click==8.4.2"
           python -m huggingface_hub.cli.hf version
           python -m huggingface_hub.cli.hf --help >/dev/null
           python -m huggingface_hub.cli.hf upload --help >/dev/null
           python -m huggingface_hub.cli.hf download --help >/dev/null
+          python -m huggingface_hub.cli.hf repos settings --help | grep -- --protected
 
       - name: Export the allowlisted Pattern A wrapper
         shell: bash
@@ -60,8 +61,8 @@ jobs:
 
           manifest = tomllib.loads(Path(os.environ["HFS_MANIFEST"]).read_text(encoding="utf-8"))
           space_id = manifest["space"]
-          if os.environ["HFS_TARGET"] == "production" and space_id != os.environ["FORMAL_SPACE"]:
-              raise SystemExit("production manifest must select the canonical DB Space")
+          if os.environ["HFS_TARGET"] == "primary" and space_id != os.environ["FORMAL_SPACE"]:
+              raise SystemExit("primary manifest must select the canonical DB Space")
           api = HfApi(token=os.environ["HF_TOKEN"])
           info = api.repo_info(repo_id=space_id, repo_type="space")
           if info.private is not True:
@@ -80,7 +81,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$HFS_TARGET" == "production" ]]; then
+          if [[ "$HFS_TARGET" == "primary" ]]; then
             [[ "$GITHUB_REF" == "refs/heads/main" ]]
             git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
             [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
