@@ -22,7 +22,7 @@
 | --- | --- | ---: | --- |
 | `README.md` | Hugging Face Space card、项目介绍、本地运行和部署入口 | No | 修改项目定位、HF metadata、`sdk: docker`、`app_port`、端口说明或公开文档入口时 |
 | `Dockerfile` | Docker Space 镜像构建入口；安装 MySQL、NocoDB、Redis、Nginx、Supervisor、Python runtime | No | 修改基础镜像、MySQL/NocoDB 版本、APT 包、复制路径、运行用户、端口、healthcheck 或 build args 时 |
-| `hfs-dev.toml` | 最小 HFS v2 semantic registry；登记 Pattern A port/artifact lane、Space、Settings 键名和 dist 关系 | No | 修改 HFS 分类、artifact lane、Space、Settings 键名、下载面或 local-only 控制面时 |
+| `hfs-dev.toml` | 最小 HFS v3 semantic registry；登记 Pattern A port/artifact lane、Space、Settings 键名和 dist 关系 | No | 修改 HFS 分类、artifact lane、Space、Settings 键名、下载面或 local-only 控制面时 |
 | `.github/` | GitHub Actions；当前只有 `static-check` workflow | No | 修改 CI 触发条件、permissions、checkout 或验证命令时 |
 | `.dockerignore` | Docker build context 过滤 | No | 修改 build context、排除规则或避免把本地文件、文档、secret 打进镜像时 |
 | `.gitattributes` / `.gitignore` | Git 归一化和忽略规则 | No | 修改换行策略、忽略生成物、local runtime 文件或 secret 文件规则时 |
@@ -67,7 +67,7 @@ cat docker/AGENTS.md
 - 始终把本仓库定位为 demo/all-in-one deployment bundle，不要暗示生产级 HA、备份、审计、权限隔离或完整安全基线已经具备。
 - 保持 Hugging Face Docker Space 约束：单容器、repo root 是 Space root、Nginx 监听 `7860`、容器运行 UID `1000`、持久化数据在 `/data`。
 - `README.md` front matter 的 `app_port: 7860`、`hfs-dev.toml` 的 `public_port = 7860`、`docker/nginx.conf` 的 `listen 7860`、`Dockerfile` 的 `EXPOSE 7860` 必须一致。
-- `hfs-dev.toml` 当前声明 HFS v2 `port` + `artifact` 车道、Space、Settings 键名和 `hfs-dist` 下载面；产品 pin、checksum、bootstrap 与 persistence 不变量在 Dockerfile、runtime 脚本和 artifact contract check 中维护，修改时同步检查 README、Dockerfile、scripts 和 docs。
+- `hfs-dev.toml` 当前声明 HFS v3 `port` + `artifact` 车道、Space、Settings 键名和 `hfs-dist` 下载面；产品 pin、checksum、bootstrap 与 persistence 不变量在 Dockerfile、runtime 脚本和 artifact contract check 中维护，修改时同步检查 README、Dockerfile、scripts 和 docs。
 - `/data` 是 persistence 边界，只承载普通文件语义安全的持久数据：NocoDB 数据、`config/` 密钥快照、日志和 `backups/` 逻辑备份。HF bucket volume 是 FUSE 对象存储，不支持 unix socket，也不支持 InnoDB redo/RDB 依赖的 rename 语义（实测会触发 `log0write.cc` `ib::fatal`）。MySQL 数据（`/home/user/mysql`）、Redis 数据（`/home/user/redis`）、runtime socket/pid/Nginx temp/wrapper public JS（`/home/user/run`）必须留在容器本地。跨重启持久化靠 `mysql-backup` sidecar 定期向 `/data/backups` 写 `nocodb-*.sql.gz` 逻辑备份 + 每次启动自动恢复（最多丢失一个备份间隔）；不要在 `/data` 上直接放置 MySQL/Redis 数据目录，volume 写入只用新建/删除，不用 tmp+rename。
 - `DATA_DIR` 在配置文档中可见，但当前 Supervisor、Nginx、MySQL socket、healthcheck 和脚本都围绕 `/data` 写死；不要把它当成可自由切换的 runtime 开关。
 - entrypoint 生成的 secrets 属于 `/data/config/generated.env`；`/data/config/supervisor.env` 也是敏感诊断快照。不要提交真实 secret，不要把 generated secret 写入 README、docs、test fixture、日志样例、PR 文案或 public catalog。

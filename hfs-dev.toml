@@ -1,4 +1,4 @@
-standard = "2.1"
+standard = "3.0"
 project = "db-all-in-one-hfs"
 space = "BlueSkyXN/db-all-in-one-hfs"
 sovereignty = "port"
@@ -9,7 +9,6 @@ target_role = "primary"
 space_visibility = "protected"
 bucket_visibility = "private"
 env_file = ".env"
-secret_files = []
 
 # These keys are local deployment controls only. They must never be copied to
 # Space Settings, artifact manifests, archives, or generated runtime files.

@@ -14,7 +14,7 @@ pinned: false
 
 > 该工程不是生产部署方案。生产环境应使用独立的 MySQL 服务，并补齐高可用、备份、鉴权、监控、容量规划和正式运维流程。
 
-## HFS v2.1 Preview 定位
+## HFS v3.0 Preview 定位
 
 本仓库是 **Pattern A / HFS Port Repository**：仓库根目录是 GitHub 维护根和 Space wrapper root，而不是产品源码镜像。NocoDB runtime 走 **artifact** 车道：
 

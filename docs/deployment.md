@@ -1,6 +1,6 @@
 # 部署指南
 
-本指南定义 HFS v2.1 Preview artifact 交付合同。Preview 日常变更可直接更新 canonical Space；任何 Secret 必须先写入 ignored plaintext `.env`，远端只保存部署副本并在写后 readback。candidate profile 仅用于高风险可选验证，使用 `local/hfs-targets/candidate.env`。该 demo 不适合生产数据；bucket、挂载、数据库或备份等有状态写操作仍需单独批准。
+本指南定义 HFS v3.0 Preview artifact 交付合同。Preview 日常变更可直接更新 canonical Space；任何 Secret 必须先写入 ignored plaintext `.env`，远端只保存部署副本并在写后 readback。candidate profile 仅用于高风险可选验证，使用 `local/hfs-targets/candidate.env`。该 demo 不适合生产数据；bucket、挂载、数据库或备份等有状态写操作仍需单独批准。
 
 ## 交付前 owner gates
 

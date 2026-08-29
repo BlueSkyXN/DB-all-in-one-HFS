@@ -11,7 +11,7 @@ import tomllib
 
 manifest = tomllib.loads(Path("hfs-dev.toml").read_text(encoding="utf-8"))
 expected = {
-    "standard": "2.1",
+    "standard": "3.0",
     "project": "db-all-in-one-hfs",
     "space": "BlueSkyXN/db-all-in-one-hfs",
     "sovereignty": "port",
@@ -22,7 +22,6 @@ expected = {
     "space_visibility": "protected",
     "bucket_visibility": "private",
     "env_file": ".env",
-    "secret_files": [],
     "dist_bucket": "hfs-dist",
 }
 for key, value in expected.items():
@@ -30,7 +29,7 @@ for key, value in expected.items():
         raise SystemExit(f"hfs-dev.toml: {key} must be {value!r}")
 candidate = tomllib.loads(Path("hfs-dev.candidate.toml").read_text(encoding="utf-8"))
 candidate_expected = {
-    "space": "BlueSkyXN/db-all-in-one-hfs-v2-candidate",
+    "space": "BlueSkyXN/db-all-in-one-hfs-v3-candidate",
     "target_role": "candidate",
     "env_file": "local/hfs-targets/candidate.env",
 }
