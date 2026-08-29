@@ -1,6 +1,6 @@
 # 部署指南
 
-本指南只定义 HFS v2 artifact 交付合同，不授权对现有 Space、bucket、Settings、挂载、数据库或备份执行写操作。该 demo 不适合生产数据。
+本指南定义 HFS v3.0 Preview artifact 交付合同。Preview 日常变更可直接更新 canonical Space；任何 Secret 必须先写入 ignored plaintext `.env`，远端只保存部署副本并在写后 readback。candidate profile 仅用于高风险可选验证，使用 `local/hfs-targets/candidate.env`。该 demo 不适合生产数据；bucket、挂载、数据库或备份等有状态写操作仍需单独批准。
 
 ## 交付前 owner gates
 
@@ -33,7 +33,7 @@ workflow 需要预先由 owner 配置的 `HF_TOKEN` Secret、`HFS_BUCKET_NAMESPA
 `.github/workflows/deploy-hf-space.yml` 同样只能手动运行，并要求输入 `DEPLOY_DB_AIO_HFS`。它：
 
 1. 拒绝未提交工作区，导出只含 Dockerfile、Space card、manifest、`.dockerignore`、`docker/` runtime contract 和生成的 `BUILD_SOURCE.json` 的 wrapper bundle。
-2. candidate 与 production 目标都必须已经是 private；production 还必须由 manifest 精确选择 `BlueSkyXN/db-all-in-one-hfs`，并在上传紧前重新 fetch `origin/main`，确认 workflow ref、checkout `HEAD`、`GITHUB_SHA` 与 current main 完全一致。
+2. candidate 与 primary 目标都必须已经是 Protected；primary 还必须由 manifest 精确选择 `BlueSkyXN/db-all-in-one-hfs`，并在上传紧前重新 fetch `origin/main`，确认 workflow ref、checkout `HEAD`、`GITHUB_SHA` 与 current main 完全一致。
 3. 使用 HF CLI 上传该 bundle，不使用 credential-bearing Git URL、`git push`、force-push 或 whole-repository delete。
 4. 下载并逐字节核对 `BUILD_SOURCE.json`、Dockerfile、manifest、ignore 规则和关键 bootstrap 文件；缺完整 40 位 wrapper SHA 即失败。
 

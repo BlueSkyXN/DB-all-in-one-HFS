@@ -2,7 +2,7 @@
 
 `DB-all-in-one-HFS` 是 Hugging Face Docker Space demo bundle。它满足单容器和单公网入口约束，但并非生产级数据库平台：对外只有 Nginx `7860`，容器内由 Supervisor 管理多个内部服务。
 
-## HFS v2 artifact 边界
+## HFS v3 artifact 边界
 
 这是 Pattern A port wrapper。GitHub main 是可写的 wrapper 与发布流程事实源；Space 只消费导出的 allowlisted wrapper，不保存 NocoDB 产品 rootfs、`local/`、`.env*`、缓存、生成数据或凭据。
 

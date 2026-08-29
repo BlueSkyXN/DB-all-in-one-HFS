@@ -1,16 +1,21 @@
-standard = "2.0"
+standard = "3.0"
 project = "db-all-in-one-hfs"
 space = "BlueSkyXN/db-all-in-one-hfs"
 sovereignty = "port"
 lane = "artifact"
 version_source = "tag"
+project_class = "preview"
+target_role = "primary"
+space_visibility = "protected"
+bucket_visibility = "private"
+env_file = ".env"
 
 # These keys are local deployment controls only. They must never be copied to
 # Space Settings, artifact manifests, archives, or generated runtime files.
 local_only = ["HF_TOKEN", "GH_TOKEN"]
 
-# Values remain in the ignored local ledger or Space Settings; this registry
-# records names and relationships only.
+# Values must exist first in the ignored local plaintext ledger; Space Settings
+# are deployment copies, while this registry records names and relationships only.
 secrets = [
   "NOCODB_ARTIFACT_DOWNLOAD_TOKEN",
   "MYSQL_ROOT_PASSWORD",

@@ -11,23 +11,37 @@ import tomllib
 
 manifest = tomllib.loads(Path("hfs-dev.toml").read_text(encoding="utf-8"))
 expected = {
-    "standard": "2.0",
+    "standard": "3.0",
     "project": "db-all-in-one-hfs",
     "space": "BlueSkyXN/db-all-in-one-hfs",
     "sovereignty": "port",
     "lane": "artifact",
     "version_source": "tag",
+    "project_class": "preview",
+    "target_role": "primary",
+    "space_visibility": "protected",
+    "bucket_visibility": "private",
+    "env_file": ".env",
     "dist_bucket": "hfs-dist",
 }
 for key, value in expected.items():
     if manifest.get(key) != value:
         raise SystemExit(f"hfs-dev.toml: {key} must be {value!r}")
 candidate = tomllib.loads(Path("hfs-dev.candidate.toml").read_text(encoding="utf-8"))
-if candidate.get("space") != "BlueSkyXN/db-all-in-one-hfs-v2-candidate":
-    raise SystemExit("candidate manifest has the wrong fixed Space id")
+candidate_expected = {
+    "space": "BlueSkyXN/db-all-in-one-hfs-v3-candidate",
+    "target_role": "candidate",
+    "env_file": "local/hfs-targets/candidate.env",
+}
+for key, value in candidate_expected.items():
+    if candidate.get(key) != value:
+        raise SystemExit(f"candidate manifest {key} must be {value!r}")
 for key in sorted(set(manifest) | set(candidate)):
-    if key != "space" and manifest.get(key) != candidate.get(key):
-        raise SystemExit(f"candidate manifest differs from production at {key}")
+    if (
+        key not in {"space", "target_role", "env_file"}
+        and manifest.get(key) != candidate.get(key)
+    ):
+        raise SystemExit(f"candidate manifest differs from canonical preview at {key}")
 if "NOCODB_ARTIFACT_MANIFEST_URL" not in manifest.get("variables", []):
     raise SystemExit("hfs-dev.toml must register NOCODB_ARTIFACT_MANIFEST_URL")
 if "NOCODB_ARTIFACT_DOWNLOAD_TOKEN" not in manifest.get("secrets", []):
@@ -88,10 +102,11 @@ for required in (
     "python -m huggingface_hub.cli.hf buckets cp",
     "gh release download",
     "sha256sum -c -",
-    "huggingface_hub==1.5.0",
-    "click==8.3.3",
+    "huggingface_hub==1.25.1",
+    "click==8.4.2",
     "python -m huggingface_hub.cli.hf --help",
     "python -m huggingface_hub.cli.hf buckets --help",
+    "python -m huggingface_hub.cli.hf repos settings --help | grep -- --protected",
 ):
     if required not in publisher:
         raise SystemExit(f"artifact publisher missing required contract gate: {required}")
@@ -135,16 +150,17 @@ for required in (
     "hfs-dev.candidate.toml", "FORMAL_SPACE: BlueSkyXN/db-all-in-one-hfs",
     "target Space must be private before wrapper upload",
     "refusing non-wrapper Space tree", "full Space tree readback",
-    "huggingface_hub==1.5.0",
-    "click==8.3.3",
+    "huggingface_hub==1.25.1",
+    "click==8.4.2",
     "python -m huggingface_hub.cli.hf --help",
     "python -m huggingface_hub.cli.hf download --help",
+    "python -m huggingface_hub.cli.hf repos settings --help | grep -- --protected",
 ):
     if required not in deployer:
         raise SystemExit(f"wrapper deployer missing required contract gate: {required}")
 upload_offset = deployer.rindex("python -m huggingface_hub.cli.hf upload")
 for required in (
-    'if os.environ["HFS_TARGET"] == "production" and space_id != os.environ["FORMAL_SPACE"]:',
+    'if os.environ["HFS_TARGET"] == "primary" and space_id != os.environ["FORMAL_SPACE"]:',
     'if info.private is not True:',
     '[[ "$GITHUB_REF" == "refs/heads/main" ]]',
     'git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main',
@@ -155,7 +171,7 @@ for required in (
     if offset < 0 or offset > upload_offset:
         raise SystemExit(f"wrapper deployer pre-upload gate missing or late: {required}")
 if 'os.environ["HFS_TARGET"] == "candidate" and not info.private' in deployer:
-    raise SystemExit("wrapper deployer must require private visibility for production too")
+    raise SystemExit("wrapper deployer must require non-public visibility for primary too")
 for forbidden in ("--force", "git push", "--delete", "restart_space", "factory_reboot"):
     if forbidden in deployer:
         raise SystemExit(f"wrapper deployer contains forbidden remote mutation: {forbidden}")
